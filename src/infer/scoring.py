@@ -56,10 +56,29 @@ def yes_no_probabilities(
                         truncation=True, max_length=512).to(device)
         logits = model(**enc).logits              # (B, T, V)
 
-        # last NON-PAD position for each row (left/right padding safe)
-        last_idx = enc["attention_mask"].sum(dim=1) - 1
-        rows = torch.arange(logits.size(0), device=logits.device)
-        next_logits = logits[rows, last_idx, :]   # (B, V)
+        # ★ The prediction position depends on WHICH SIDE was padded.
+        #
+        #   right padding: [tok tok tok PAD PAD] -> last real token is at
+        #                  attention_mask.sum() - 1
+        #   left  padding: [PAD PAD tok tok tok] -> last real token is at T-1,
+        #                  and attention_mask.sum()-1 lands INSIDE THE PAD RUN
+        #
+        # Chapter 1 sets `padding_side = "left"` (correct for next-token scoring),
+        # so using the right-padding formula reads a padded position. Those
+        # positions attend to nothing, which in fp16 yields NaN logits -- the whole
+        # row of probabilities becomes NaN and the result is silently meaningless.
+        if getattr(tokenizer, "padding_side", "right") == "left":
+            next_logits = logits[:, -1, :]                       # (B, V)
+        else:
+            last_idx = enc["attention_mask"].sum(dim=1) - 1
+            rows = torch.arange(logits.size(0), device=logits.device)
+            next_logits = logits[rows, last_idx, :]              # (B, V)
+
+        if not torch.isfinite(next_logits).all():
+            raise RuntimeError(
+                "Non-finite logits at the scoring position. Usually a padded "
+                "position was read (check tokenizer.padding_side) or fp16 overflow."
+            )
 
         probs = F.softmax(next_logits.float(), dim=-1)
         p_yes = probs[:, yes_ids].sum(dim=-1)

@@ -76,14 +76,61 @@ def make_tokenize_fn(tokenizer, cutoff_len: int):
 
 
 # ------------------------------------------------------------------ PEFT
+def _cast_trainable_to_fp32(model):
+    """
+    ★ REQUIRED WHENEVER THE BASE MODEL IS LOADED IN fp16.
+
+    The base model is fp16, so PEFT creates the adapter tensors in fp16 too.
+    `Trainer(fp16=True)` then wraps the step in a GradScaler, and
+    `scaler.unscale_()` REFUSES fp16 gradients:
+
+        ValueError: Attempting to unscale FP16 gradients.
+
+    Mixed precision means fp16 *activations* with fp32 *master weights*. The
+    trainable parameters must therefore be fp32; only the frozen backbone stays
+    fp16. This is what `prepare_model_for_kbit_training` does for QLoRA, and it
+    is just as necessary for plain fp16.
+
+    ⚠️ MoRA fails SILENTLY without this instead of raising: loss collapses to
+    exactly 0.0 with grad_norm=nan, which looks like a finished run. Any check
+    that only asks "is the loss non-NaN" will pass it.
+
+    Layer norms are also promoted: they accumulate sums over the hidden
+    dimension and are the classic fp16 overflow site.
+    """
+    import torch as _t
+    n = 0
+    for name, p in model.named_parameters():
+        if p.requires_grad:
+            p.data = p.data.to(_t.float32)
+            n += 1
+    for name, module in model.named_modules():
+        if "norm" in name.lower() and hasattr(module, "weight"):
+            if module.weight is not None and module.weight.dtype == _t.float16:
+                module.weight.data = module.weight.data.to(_t.float32)
+    if n == 0:
+        raise RuntimeError(
+            "attach_peft produced a model with NO trainable parameters. "
+            "Check `target_modules` matches this architecture "
+            "(Qwen2.5 uses q_proj/k_proj/v_proj/o_proj/gate_proj/up_proj/down_proj)."
+        )
+    return model
+
+
 def attach_peft(model, method: str, cfg: dict):
+    """
+    Returns a PEFT-wrapped model whose trainable parameters are fp32-safe.
+
+    Keep `target_modules` identical across methods -- it is the control that makes
+    LoRA / MoRA / BOFT comparable at all.
+    """
     method = method.lower()
 
     if method == "lora":
         from peft import LoraConfig, get_peft_model
-        return get_peft_model(model, LoraConfig(
+        return _cast_trainable_to_fp32(get_peft_model(model, LoraConfig(
             r=cfg["r"], lora_alpha=cfg["alpha"], lora_dropout=cfg["dropout"],
-            target_modules=cfg["target_modules"], bias="none", task_type="CAUSAL_LM"))
+            target_modules=cfg["target_modules"], bias="none", task_type="CAUSAL_LM")))
 
     if method == "mora":
         # peft-mora is a FORK of peft: pip install git+https://github.com/kongds/MoRA.git#subdirectory=peft-mora
@@ -94,8 +141,8 @@ def attach_peft(model, method: str, cfg: dict):
         kw = dict(r=cfg["r"], lora_alpha=cfg["alpha"], lora_dropout=cfg["dropout"],
                   target_modules=cfg["target_modules"], bias="none", task_type="CAUSAL_LM")
         try:
-            return get_peft_model(model, LoraConfig(
-                **kw, use_mora=True, mora_type=cfg.get("mora_type", 6)))
+            return _cast_trainable_to_fp32(get_peft_model(model, LoraConfig(
+                **kw, use_mora=True, mora_type=cfg.get("mora_type", 6))))
         except TypeError as e:
             raise RuntimeError(
                 "Installed `peft` has no `use_mora`. Install the fork:\n"
@@ -107,12 +154,22 @@ def attach_peft(model, method: str, cfg: dict):
         # Official HF PEFT. Multiplicative ORTHOGONAL updates (vs LoRA's additive
         # low-rank) -- tests the knowledge-PRESERVATION hypothesis, which is why
         # the forgetting measurement is what makes BOFT worth including.
-        from peft import BOFTConfig, get_peft_model
-        return get_peft_model(model, BOFTConfig(
+        try:
+            from peft import BOFTConfig, get_peft_model
+        except ImportError as e:
+            raise RuntimeError(
+                "`BOFTConfig` is missing from the installed peft.\n"
+                "This is almost always the peft-mora fork: it is built on peft 0.9.0, "
+                "which predates BOFT, and installing it OVERWRITES official peft.\n"
+                "  -> MoRA and BOFT cannot coexist in one environment.\n"
+                "  -> Run them in SEPARATE sessions (see DEPLOY.md), and run LoRA in "
+                "both as a cross-environment control."
+            ) from e
+        return _cast_trainable_to_fp32(get_peft_model(model, BOFTConfig(
             boft_block_size=cfg.get("boft_block_size", 4),
             boft_n_butterfly_factor=cfg.get("boft_n_butterfly_factor", 2),
             target_modules=cfg["target_modules"],
-            boft_dropout=cfg["dropout"], bias="none", task_type="CAUSAL_LM"))
+            boft_dropout=cfg["dropout"], bias="none", task_type="CAUSAL_LM")))
 
     raise ValueError(f"unknown PEFT method: {method}")
 

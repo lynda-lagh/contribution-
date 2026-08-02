@@ -134,12 +134,36 @@ def _tiny_train(method: str, steps: int = 20):
     )
     out = tr.train()
     loss = out.metrics.get("train_loss")
-    assert loss is not None and loss == loss, f"{method}: loss is NaN (fp16 instability)"
+
+    # ★ "not NaN" IS NOT ENOUGH.
+    #
+    # The original assertion was `loss == loss`, which only rejects NaN. MoRA
+    # once passed it while reporting train_loss = 0.0000 and grad_norm = nan at
+    # every logging step -- i.e. the run had learned nothing and the check said
+    # OK. A causal-LM loss of exactly 0.0 is not achievable on real text in 20
+    # steps; it means every label was masked, or fp16 collapsed the gradients.
+    assert loss is not None, f"{method}: no train_loss reported"
+    assert loss == loss, f"{method}: loss is NaN (fp16 instability)"
+    assert loss > 1e-6, (
+        f"{method}: train_loss is {loss} -- the model did not learn. "
+        "Exactly-zero loss means all labels were masked (-100) or fp16 "
+        "gradients collapsed. Check _cast_trainable_to_fp32 ran."
+    )
+    assert loss < 100, f"{method}: train_loss {loss} is implausibly large"
+
+    # every trainable parameter must be fp32, or GradScaler cannot unscale
+    bad = [n for n, p in model.named_parameters()
+           if p.requires_grad and p.dtype == torch.float16]
+    assert not bad, (f"{method}: {len(bad)} trainable params still fp16 "
+                     f"(e.g. {bad[0]}) -- GradScaler will refuse to unscale them")
+
+    n_train = sum(p.numel() for p in model.parameters() if p.requires_grad)
     vram = torch.cuda.max_memory_allocated() / 1e9
     del model, tr
     torch.cuda.empty_cache()
     torch.cuda.reset_peak_memory_stats()
-    return f"-> loss={loss:.4f} (finite), peak VRAM {vram:.2f} GB"
+    return (f"-> loss={loss:.4f} (>0, finite), {n_train/1e6:.2f}M trainable, "
+            f"peak VRAM {vram:.2f} GB")
 
 
 def c_lora():
@@ -190,9 +214,41 @@ if __name__ == "__main__":
 
     print("\n" + "=" * 62)
     bad = [n for n, ok, _ in results if not ok]
-    if bad:
-        print(f"FAILED: {bad}")
-        print("Fix these before running anything long.")
-        print("If only MoRA failed -> fall back to LoRA vs BOFT (still two mechanisms).")
-        sys.exit(1)
-    print("ALL PASSED -- safe to start Chapter 1.")
+    if not bad:
+        print("ALL PASSED -- safe to start Chapter 1.")
+        sys.exit(0)
+
+    print(f"FAILED: {bad}\n")
+
+    # ---- the one failure that is EXPECTED and is not a bug ----------------
+    mora_ok = any(n == "MoRA trains (fp16)" and ok for n, ok, _ in results)
+    boft_bad = "BOFT trains (fp16)" in bad
+    if mora_ok and boft_bad:
+        print("-" * 62)
+        print("★ MoRA works and BOFT does not. This is the KNOWN CONFLICT, not a bug")
+        print("  in your code:")
+        print()
+        print("    peft-mora is a FORK of peft 0.9.0. Installing it overwrites")
+        print("    official peft, and BOFT did not exist in 0.9.0.")
+        print("    The two CANNOT share one environment.")
+        print()
+        print("  Do NOT try to fix this. Split the work by session:")
+        print()
+        print("    session A (official peft):  pip install -U peft")
+        print("                                --peft lora   --peft boft")
+        print("    session B (the fork):       pip install git+https://github.com/"
+              "kongds/MoRA.git#subdirectory=peft-mora")
+        print("                                --peft mora")
+        print()
+        print("  ★ Run --peft lora in BOTH sessions. If the two LoRA numbers agree,")
+        print("    the peft version is not a confound and the arms are comparable.")
+        print("    That control costs one extra run and it is what makes the")
+        print("    three-way comparison defensible.")
+        print("-" * 62)
+        remaining = [b for b in bad if b != "BOFT trains (fp16)"]
+        if not remaining:
+            print("\nNothing else failed -> you may proceed with LoRA + MoRA now.")
+            sys.exit(0)
+        print(f"\nStill to fix: {remaining}")
+
+    sys.exit(1)
