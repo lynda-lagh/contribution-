@@ -68,11 +68,43 @@ def c_bf16():
 
 
 def c_bnb():
-    import bitsandbytes  # noqa: F401
+    # OPTIONAL: bitsandbytes is needed only for the 7B QLoRA confirmation run,
+    # which is a nice-to-have, not part of the main grid. Never fail the whole
+    # smoke test over it -- that would block Chapters 1-4 for a bonus experiment.
+    try:
+        import bitsandbytes  # noqa: F401
+    except ImportError:
+        return ("-> NOT INSTALLED (optional). Only the 7B QLoRA confirmation run "
+                "needs it; Chapters 1-4 do not. `pip install bitsandbytes` if you "
+                "want that run.")
     cc = torch.cuda.get_device_capability(0)
     if cc[0] * 10 + cc[1] < 75:
         return "-> WARNING: compute capability < 7.5, 4-bit unreliable (P100). Use T4."
     return "-> ok (needed for the 7B QLoRA confirmation runs)"
+
+
+def c_stack_versions():
+    """
+    ★ The library stack must MATCH ACROSS SESSIONS.
+
+    Chapter 2 spans two peft environments. If one session also has a different
+    transformers, the LoRA control cannot isolate peft -- you would be comparing
+    two whole stacks. `pip install -U peft` is what causes this: newer peft pulls
+    a newer transformers, which then breaks torchao.
+    """
+    import transformers
+    tv = transformers.__version__
+    major = int(tv.split(".")[0])
+    note = ""
+    if major >= 5:
+        note = ("  ⚠️ transformers 5.x -- almost certainly pulled in by "
+                "`pip install -U peft`. Pin it: pip install 'transformers==4.57.6'")
+    try:
+        import torchao
+        ao = torchao.__version__
+    except Exception:
+        ao = "absent"
+    return f"-> transformers {tv} | torchao {ao}{note}"
 
 
 # ---------------------------------------------------------------- libs
@@ -312,6 +344,7 @@ if __name__ == "__main__":
     check("bf16 support", c_bf16)
     check("bitsandbytes", c_bnb)
     check("transformers API", c_transformers)
+    check("stack versions", c_stack_versions)
     check("peft / MoRA / BOFT", c_peft)
     check("tokenizer + pad_token", c_tokenizer)
     check("forward-pass dtype probe", c_forward_dtype)

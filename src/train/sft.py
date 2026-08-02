@@ -235,11 +235,39 @@ def attach_peft(model, method: str, cfg: dict):
                 "  -> Run them in SEPARATE sessions (see DEPLOY.md), and run LoRA in "
                 "both as a cross-environment control."
             ) from e
-        return _cast_trainable_to_fp32(get_peft_model(model, BOFTConfig(
-            boft_block_size=cfg.get("boft_block_size", 4),
-            boft_n_butterfly_factor=cfg.get("boft_n_butterfly_factor", 2),
-            target_modules=cfg["target_modules"],
-            boft_dropout=cfg["dropout"], bias="none", task_type="CAUSAL_LM")))
+        import warnings
+        want_bf = cfg.get("boft_n_butterfly_factor", 2)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            m = get_peft_model(model, BOFTConfig(
+                boft_block_size=cfg.get("boft_block_size", 4),
+                boft_n_butterfly_factor=want_bf,
+                target_modules=cfg["target_modules"],
+                boft_dropout=cfg["dropout"], bias="none", task_type="CAUSAL_LM"))
+
+        # ★★ BOFT SILENTLY CHANGES ITSELF IF ITS CUDA KERNEL WILL NOT BUILD.
+        #
+        # peft/tuners/boft/layer.py compiles `fbd_cuda` at import time. If nvcc
+        # fails (version skew between torch and the CUDA toolkit is the usual
+        # cause) peft emits a UserWarning and *sets boft_n_butterfly_factor to 1*.
+        #
+        # The butterfly factor is the STRUCTURAL parameter of BOFT -- it controls
+        # how many butterfly stages compose the orthogonal transform. Silently
+        # running 1 instead of 2 means the reported method is not the method that
+        # ran, and the LoRA/MoRA/BOFT comparison is no longer about what we say
+        # it is about. Refuse rather than proceed.
+        msgs = " | ".join(str(w.message) for w in caught)
+        if want_bf != 1 and "butterfly_factor to 1" in msgs:
+            raise RuntimeError(
+                f"BOFT downgraded boft_n_butterfly_factor {want_bf} -> 1 because its "
+                f"CUDA extension failed to build:\n  {msgs}\n\n"
+                f"This changes the METHOD, not just its speed. Options:\n"
+                f"  1. Fix the build (needs ninja + an nvcc matching torch's CUDA), or\n"
+                f"  2. Set boft_n_butterfly_factor: 1 in configs/base.yaml DELIBERATELY\n"
+                f"     and report that BOFT ran with a single butterfly stage.\n"
+                f"Do not let it happen silently."
+            )
+        return _cast_trainable_to_fp32(m)
 
     raise ValueError(f"unknown PEFT method: {method}")
 
