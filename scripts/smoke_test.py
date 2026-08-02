@@ -19,8 +19,9 @@ import traceback
 
 import torch
 
-OK, FAIL, WARN = "  [OK]  ", "  [FAIL]", "  [WARN]"
-results: list[tuple[str, bool, str]] = []
+OK, FAIL, WARN, SKIP = "  [OK]  ", "  [FAIL]", "  [WARN]", "  [n/a] "
+# status is one of: "ok" | "expected" | "fail"
+results: list[tuple[str, str, str]] = []
 
 
 MAX_ERR_CHARS = 600   # safety net: no single failure should dump a screen-filling wall of text
@@ -33,16 +34,64 @@ def _shorten(text: str, limit: int = MAX_ERR_CHARS) -> str:
     return text[:limit] + f"\n       ... [{len(text) - limit} more chars truncated]"
 
 
+def _configured_butterfly():
+    """The boft_n_butterfly_factor the real runs will use, or None if unreadable."""
+    try:
+        import yaml
+        from pathlib import Path
+        cfg = yaml.safe_load(Path("configs/base.yaml").read_text(encoding="utf-8"))
+        return cfg["peft"].get("boft_n_butterfly_factor")
+    except Exception:
+        return None
+
+
+def classify(name: str, err: str):
+    """
+    Is this failure the EXPECTED one for this environment?
+
+    Two checks are *designed* to fail depending on which session you are in --
+    printing them in red with a full traceback trains you to ignore red, which is
+    exactly the habit that lets a real failure slip through. Recognise them by
+    signature and report them calmly instead.
+
+    Returns (one-line headline, indented detail) or None if it is a real failure.
+    """
+    if name == "MoRA trains (fp16)" and "has no `use_mora`" in err:
+        return ("not available in this environment -- expected, MoRA lives in Session B",
+                "The official peft has no `use_mora`; the peft-mora fork provides it.\n"
+                "       Run MoRA in a FRESH session with the fork installed (ENV='mora').\n"
+                "       Nothing to fix -- continue with lora / boft / probe here.")
+
+    if name == "BOFT trains (fp16)" and "downgraded boft_n_butterfly_factor" in err:
+        if _configured_butterfly() == 1:
+            return ("CUDA kernel unavailable, running the factor=1 fallback you pinned",
+                    "peft's fbd_cuda extension will not build here, so BOFT falls back to\n"
+                    "       boft_n_butterfly_factor=1 -- which configs/base.yaml already pins\n"
+                    "       DELIBERATELY. This is the fallback you chose, working as intended.\n"
+                    "       Report that BOFT ran with a single butterfly stage.\n"
+                    "       To get factor=2, run the notebook's BOFT CUDA kernel patch cell.")
+        # config asks for >1 but peft is silently dropping it: that IS a real failure
+        return None
+
+    return None
+
+
 def check(name: str, fn) -> None:
     try:
         msg = fn() or ""
         print(f"{OK} {name} {msg}")
-        results.append((name, True, msg))
+        results.append((name, "ok", msg))
     except Exception as e:
         full = str(e)
-        print(f"{FAIL} {name}: {_shorten(full)}")
-        traceback.print_exc(limit=1)
-        results.append((name, False, full))
+        known = classify(name, full)
+        if known:
+            # expected -> one calm line, no traceback, no red
+            print(f"{SKIP} {name} -> {known[0]}")
+            results.append((name, "expected", full))
+        else:
+            print(f"{FAIL} {name}: {_shorten(full)}")
+            traceback.print_exc(limit=1)
+            results.append((name, "fail", full))
 
 
 # ---------------------------------------------------------------- hardware
@@ -377,73 +426,36 @@ if __name__ == "__main__":
     check("BOFT trains (fp16)", c_boft)
     check("logit scoring", c_logit_scoring)
 
+    # ---------------------------------------------------------------- summary
+    # Three outcomes, not two. "expected" means a check that is DESIGNED to fail
+    # in this environment (MoRA outside the fork; BOFT without its CUDA kernel
+    # when base.yaml already pins the fallback). Those are reported calmly so
+    # that anything printed as FAIL is always worth reading.
+    passed   = [n for n, s, _ in results if s == "ok"]
+    expected = [(n, m) for n, s, m in results if s == "expected"]
+    failed   = [n for n, s, _ in results if s == "fail"]
+
     print("\n" + "=" * 62)
-    bad = [n for n, ok, _ in results if not ok]
-    if not bad:
-        print("ALL PASSED -- safe to start Chapter 1.")
-        sys.exit(0)
-
-    by_name = {n: msg for n, ok, msg in results if not ok}
-
-    # ---- classify each failure: EXPECTED (no action) vs NEEDS ACTION ------
-    # Both peft environments always fail one of {MoRA, BOFT} by design -- that
-    # is not a bug, it's the reason the two-session split exists. Recognize the
-    # known signatures and say so plainly instead of leaving a red FAIL to
-    # puzzle over.
-    expected, needs_action = [], []
-
-    if "MoRA trains (fp16)" in by_name:
-        if "has no `use_mora`" in by_name["MoRA trains (fp16)"]:
-            expected.append((
-                "MoRA trains (fp16)",
-                "Expected in the OFFICIAL peft session. MoRA only runs in the fork\n"
-                "       (a FRESH session with the peft-mora fork installed, ENV='mora').\n"
-                "       Nothing to fix here -- proceed with lora/boft/probe in this session."
-            ))
-        else:
-            needs_action.append("MoRA trains (fp16)")
-
-    if "BOFT trains (fp16)" in by_name:
-        boft_msg = by_name["BOFT trains (fp16)"]
-        if "downgraded boft_n_butterfly_factor" in boft_msg:
-            import yaml
-            from pathlib import Path
-            try:
-                configured = (yaml.safe_load(Path("configs/base.yaml").read_text(encoding="utf-8"))
-                              ["peft"].get("boft_n_butterfly_factor"))
-            except Exception:
-                configured = None
-            if configured == 1:
-                expected.append((
-                    "BOFT trains (fp16)",
-                    "BOFT's CUDA kernel (fbd_cuda) won't compile in this environment (torch/nvcc\n"
-                    "       version mismatch -- a peft-side issue, not your code). It falls back to\n"
-                    "       boft_n_butterfly_factor=1, and configs/base.yaml already pins that value\n"
-                    "       DELIBERATELY, so this is the fallback you already chose, confirmed working.\n"
-                    "       Nothing to fix -- just report BOFT ran single-butterfly-stage."
-                ))
-            else:
-                needs_action.append("BOFT trains (fp16)")
-                print("! BOFT wants to silently drop to boft_n_butterfly_factor=1 but "
-                      "configs/base.yaml does not\n  pin it there yet -- set it explicitly "
-                      "(see message above) or fix the CUDA build.")
-        else:
-            needs_action.append("BOFT trains (fp16)")
-
-    for n in by_name:
-        if n not in ("MoRA trains (fp16)", "BOFT trains (fp16)"):
-            needs_action.append(n)
+    print(f"{len(passed)} passed"
+          + (f" | {len(expected)} expected-n/a" if expected else "")
+          + (f" | {len(failed)} FAILED" if failed else ""))
 
     if expected:
-        print("-" * 62)
-        print("KNOWN / EXPECTED -- no action needed:")
-        for n, note in expected:
-            print(f"\n  * {n}\n       {note}")
-        print("-" * 62)
+        print()
+        for n, msg in expected:
+            detail = classify(n, msg)[1]
+            print(f"  [n/a] {n}\n       {detail}")
 
-    if needs_action:
-        print(f"\nNEEDS ATTENTION: {needs_action}")
+    if failed:
+        print("\n" + "-" * 62)
+        print(f"NEEDS ATTENTION: {failed}")
+        print("Scroll up for the traceback of each. Do not start a long run until")
+        print("these are resolved -- that is what this script exists to prevent.")
         sys.exit(1)
 
-    print("\nEverything else passed -- safe to proceed in this session.")
+    print()
+    if expected:
+        print("Nothing unexpected -- safe to proceed in THIS session.")
+    else:
+        print("ALL PASSED -- safe to start Chapter 1.")
     sys.exit(0)
