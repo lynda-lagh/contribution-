@@ -86,17 +86,40 @@ def c_transformers():
 
 
 def c_peft():
+    """Identify the environment and print the run plan that belongs to it."""
     import peft
-    from peft import LoraConfig
-    import inspect
-    has_mora = "use_mora" in inspect.signature(LoraConfig.__init__).parameters
-    try:
-        from peft import BOFTConfig  # noqa: F401
-        has_boft = True
-    except Exception:
-        has_boft = False
-    return (f"-> peft {peft.__version__} | MoRA={'YES' if has_mora else 'NO (fork not installed)'}"
-            f" | BOFT={'YES' if has_boft else 'NO'}")
+    from src.utils.config import peft_env, usable_peft_methods
+
+    e = peft_env()
+    methods = usable_peft_methods()
+
+    print()
+    print(f"       peft {peft.__version__}  ->  environment: {e['peft_env'].upper()}")
+    print(f"       runnable here: {', '.join(methods)}")
+    print()
+    if e["peft_env"] == "mora-fork":
+        print("       SESSION B (the fork). Run in THIS session:")
+        print("           --peft lora      <-- also the cross-env CONTROL")
+        print("           --peft mora")
+        print("       Then start a FRESH session, set ENV='official', and run")
+        print("       --peft boft and --peft probe there.")
+    elif e["peft_env"] == "official":
+        print("       SESSION A (official peft). Run in THIS session:")
+        print("           --peft lora      <-- also the cross-env CONTROL")
+        print("           --peft boft")
+        print("           --peft probe")
+        print("       Then a FRESH session with ENV='mora' for --peft mora.")
+    elif e["peft_env"] == "both":
+        print("       ★ This peft has BOTH. Upstream must have merged MoRA --")
+        print("         no session split needed. Verify before relying on it.")
+    else:
+        print("       ⚠️ Could not identify the environment. Check peft installed.")
+    print()
+    print("       Every result JSON is stamped with this environment.")
+    print("       After both sessions:  python -m scripts.verify_env_control")
+
+    return (f"-> {e['peft_env']} | MoRA={'YES' if e['has_mora'] else 'NO'}"
+            f" | BOFT={'YES' if e['has_boft'] else 'NO'}")
 
 
 # ---------------------------------------------------------------- model

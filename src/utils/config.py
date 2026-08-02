@@ -87,8 +87,11 @@ def save_result(cfg: dict, name: str, payload: dict) -> Path:
     d = Path(cfg["output"]["results_dir"])
     d.mkdir(parents=True, exist_ok=True)
     p = d / f"{name}.json"
-    p.write_text(json.dumps({"config": cfg, **payload}, indent=2, default=str),
-                 encoding="utf-8")
+    # ★ `env` is stamped on EVERY result, not just where someone remembered to.
+    # Chapter 2 spans two peft environments; without this the cross-environment
+    # control cannot be checked after the fact, and Kaggle sessions are not stable.
+    p.write_text(json.dumps({"config": cfg, "env": env_report(), **payload},
+                            indent=2, default=str), encoding="utf-8")
     return p
 
 
@@ -124,4 +127,48 @@ def env_report() -> dict:
             rep[mod] = __import__(mod).__version__
         except Exception:
             rep[mod] = None
+    rep |= peft_env()
     return rep
+
+
+def peft_env() -> dict:
+    """
+    ★ WHICH PEFT ENVIRONMENT IS THIS?
+
+    MoRA and BOFT cannot be installed together. MoRA exists only in the
+    `kongds/MoRA` fork, which is pinned to peft 0.9.0; BOFT is in official peft
+    and did not exist in 0.9.0. Both occupy the import name `peft`, so pip
+    installing one overwrites the other.
+
+    Chapter 2 therefore runs across TWO environments, which is a confound unless
+    it is recorded. This stamps every result JSON with the environment that
+    produced it, so `scripts/verify_env_control.py` can check afterwards that the
+    LoRA arm agrees across both -- and so a reviewer asking "which peft version
+    produced this number?" has an answer.
+    """
+    import inspect
+    out = {"peft_env": "unknown", "has_mora": False, "has_boft": False}
+    try:
+        import peft
+        out["has_mora"] = "use_mora" in inspect.signature(peft.LoraConfig.__init__).parameters
+        out["has_boft"] = hasattr(peft, "BOFTConfig")
+        if out["has_mora"] and not out["has_boft"]:
+            out["peft_env"] = "mora-fork"        # kongds/MoRA, peft 0.9.0
+        elif out["has_boft"] and not out["has_mora"]:
+            out["peft_env"] = "official"         # huggingface/peft
+        elif out["has_mora"] and out["has_boft"]:
+            out["peft_env"] = "both"             # upstream merged MoRA -> one env is enough
+    except Exception:
+        pass
+    return out
+
+
+def usable_peft_methods() -> list[str]:
+    """Which --peft values this environment can actually run."""
+    e = peft_env()
+    m = ["lora", "probe", "dpo"]                 # always available
+    if e["has_mora"]:
+        m.append("mora")
+    if e["has_boft"]:
+        m.append("boft")
+    return m
