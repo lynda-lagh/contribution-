@@ -46,8 +46,10 @@ def train_probe(cfg: dict, train_records: list[dict], test_records: list[dict],
     tok.padding_side = "left"
 
     model = AutoModelForCausalLM.from_pretrained(
-        mcfg["name"], torch_dtype=torch.float16,
-        attn_implementation=mcfg.get("attn_implementation", "eager")).cuda().eval()
+        # fp32: the probe reads HIDDEN STATES, and NaN activations would make the
+        # FLAME control meaningless rather than merely noisy.
+        mcfg["name"], dtype=torch.float32,
+        attn_implementation=mcfg.get("attn_implementation", "sdpa")).cuda().eval()
 
     if layer is None:                      # FLAME uses INTERMEDIATE layers
         layer = model.config.num_hidden_layers // 2

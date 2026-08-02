@@ -76,6 +76,14 @@ def make_tokenize_fn(tokenizer, cutoff_len: int):
 
 
 # ------------------------------------------------------------------ PEFT
+_DTYPE = {"fp32": torch.float32, "fp16": torch.float16, "bf16": torch.bfloat16}
+
+
+def load_dtype(cfg: dict):
+    """Model WEIGHT dtype from config. Compute precision is separate (train.fp16)."""
+    return _DTYPE.get(cfg.get("model", {}).get("dtype", "fp32"), torch.float32)
+
+
 def _cast_trainable_to_fp32(model):
     """
     ★ REQUIRED WHENEVER THE BASE MODEL IS LOADED IN fp16.
@@ -224,7 +232,11 @@ def train_sft(cfg: dict, data_dir: str, output_dir: str, run_name: str = "run") 
 
     model = AutoModelForCausalLM.from_pretrained(
         mcfg["name"],
-        torch_dtype=torch.float16,                       # T4: fp16, NO bf16
+        # ⚠️ fp32 WEIGHTS + fp16 COMPUTE (autocast via TrainingArguments.fp16).
+        # Qwen2.5 is a bf16-trained model whose activations overflow fp16, and
+        # T4/Turing has no native bf16. Loading weights in fp16 gives NaN logits
+        # before step 1. See configs/base.yaml `model.dtype`.
+        dtype=_DTYPE.get(cfg["model"].get("dtype", "fp32"), torch.float32),
         attn_implementation=mcfg.get("attn_implementation", "eager"),
         trust_remote_code=mcfg.get("trust_remote_code", False),
     )

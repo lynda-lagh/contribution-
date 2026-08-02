@@ -102,8 +102,11 @@ def train_dpo(cfg: dict, sft_adapter: str, pairs: list[dict], output_dir: str,
         tok.pad_token = tok.eos_token
 
     base = AutoModelForCausalLM.from_pretrained(
-        mcfg["name"], torch_dtype=torch.float16,
-        attn_implementation=mcfg.get("attn_implementation", "eager"))
+        # fp32 weights + fp16 autocast -- same reason as sft.py: Qwen2.5 in fp16
+        # returns NaN, and DPO's implicit reward is a difference of log-probs,
+        # so a NaN anywhere silently poisons the whole objective.
+        mcfg["name"], dtype=torch.float32,
+        attn_implementation=mcfg.get("attn_implementation", "sdpa"))
     # start from the SFT policy and keep training the same adapter
     model = PeftModel.from_pretrained(base, sft_adapter, is_trainable=True)
     model.config.use_cache = False

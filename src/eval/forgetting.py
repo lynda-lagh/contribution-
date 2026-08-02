@@ -70,7 +70,7 @@ def _load(base: str, adapter: str | None):
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
     m = AutoModelForCausalLM.from_pretrained(
-        base, torch_dtype=torch.float16, attn_implementation="eager").cuda()
+        base, dtype=torch.float32, attn_implementation="sdpa").cuda()  # fp16 -> NaN
     if adapter:
         from peft import PeftModel
         m = PeftModel.from_pretrained(m, adapter)

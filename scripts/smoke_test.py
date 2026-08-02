@@ -115,6 +115,67 @@ def c_tokenizer():
             f"'Yes'->{ids_yes} 'No'->{ids_no}")
 
 
+def c_forward_dtype():
+    """
+    ★ WHICH LOADING CONFIG PRODUCES FINITE LOGITS?
+
+    Qwen2/Qwen2.5 were trained in bf16 and carry activation magnitudes that can
+    exceed fp16's max (~65504). On Turing there is no native bf16, so pure fp16
+    is the obvious choice -- and it overflows: the forward pass returns NaN, the
+    loss reads exactly 0.0 and grad_norm reads nan from the first step.
+
+    This probe is INFERENCE ONLY and takes under a minute. It measures the answer
+    rather than assuming it, and prints the setting to put in configs/base.yaml.
+    """
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from src.data.prompts import ALPACA_NO_INPUT
+
+    tok = AutoTokenizer.from_pretrained(MODEL)
+    if tok.pad_token is None:
+        tok.pad_token = tok.eos_token
+    prompt = ALPACA_NO_INPUT.format(
+        instruction="Is this true: Paris is the capital of France?")
+
+    combos = [("fp16", torch.float16, "eager"),
+              ("fp16", torch.float16, "sdpa"),
+              ("fp32", torch.float32, "eager"),
+              ("fp32", torch.float32, "sdpa")]
+
+    rows, good = [], []
+    for name, dt, attn in combos:
+        try:
+            m = AutoModelForCausalLM.from_pretrained(
+                MODEL, dtype=dt, attn_implementation=attn).cuda().eval()
+            with torch.no_grad():
+                enc = tok(prompt, return_tensors="pt").to("cuda")
+                lg = m(**enc).logits[0, -1, :]
+            ok = bool(torch.isfinite(lg).all())
+            mx = float(lg.abs().max()) if ok else float("nan")
+            vram = torch.cuda.max_memory_allocated() / 1e9
+            rows.append((name, attn, ok, mx, vram))
+            if ok:
+                good.append((name, attn))
+            del m
+            torch.cuda.empty_cache(); torch.cuda.reset_peak_memory_stats()
+        except Exception as e:
+            rows.append((name, attn, False, float("nan"), float("nan")))
+            print(f"       {name}/{attn}: {type(e).__name__}: {str(e)[:60]}")
+
+    print()
+    print(f"       {'dtype':6s} {'attn':6s} {'finite':>7s} {'max|logit|':>11s} {'VRAM GB':>8s}")
+    for name, attn, ok, mx, vram in rows:
+        print(f"       {name:6s} {attn:6s} {str(ok):>7s} "
+              f"{mx:11.1f} {vram:8.2f}")
+
+    assert good, (
+        "NO loading configuration produced finite logits. Something is wrong "
+        "beyond dtype -- check the model download."
+    )
+    best = good[0]
+    return (f"-> finite in {len(good)}/4 configs; use dtype={best[0]}, "
+            f"attn_implementation={best[1]}")
+
+
 def _tiny_train(method: str, steps: int = 20):
     """20 steps on 8 fake examples -- checks the method trains and loss is finite."""
     from datasets import Dataset
@@ -125,8 +186,16 @@ def _tiny_train(method: str, steps: int = 20):
     tok = AutoTokenizer.from_pretrained(MODEL)
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
+    # ★ WEIGHTS IN fp32, COMPUTE IN fp16 via TrainingArguments(fp16=True).
+    #
+    # That is what "mixed precision" actually means: fp32 master weights, fp16
+    # activations, and autocast keeping the overflow-prone ops (softmax, layer
+    # norm, loss) in fp32. Loading the WEIGHTS in fp16 instead is what made
+    # Qwen2.5 return NaN before a single step ran.
+    #
+    # Cost: ~3.1 GB extra for a 1.5B model. A 16 GB T4 absorbs it.
     model = AutoModelForCausalLM.from_pretrained(
-        MODEL, torch_dtype=torch.float16, attn_implementation="eager")
+        MODEL, dtype=torch.float32, attn_implementation="sdpa")
     model.config.use_cache = False
     model.gradient_checkpointing_enable()
     model.enable_input_require_grads()
@@ -201,9 +270,11 @@ def c_logit_scoring():
     tok = AutoTokenizer.from_pretrained(MODEL)
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
-    tok.padding_side = "left"
+    tok.padding_side = "left"          # the function forces "right" internally
+    # fp32 for scoring: this is inference, so the memory is affordable and there
+    # is no reason to risk fp16 overflow in the measurement Chapter 1 rests on.
     m = AutoModelForCausalLM.from_pretrained(
-        MODEL, torch_dtype=torch.float16, attn_implementation="eager").cuda().eval()
+        MODEL, dtype=torch.float32, attn_implementation="sdpa").cuda().eval()
     from src.data.prompts import ALPACA_NO_INPUT
     ps = [ALPACA_NO_INPUT.format(instruction="Is this true: Paris is the capital of France?"),
           ALPACA_NO_INPUT.format(instruction="Is this true: Paris is the capital of Japan?")]
@@ -224,6 +295,7 @@ if __name__ == "__main__":
     check("transformers API", c_transformers)
     check("peft / MoRA / BOFT", c_peft)
     check("tokenizer + pad_token", c_tokenizer)
+    check("forward-pass dtype probe", c_forward_dtype)
     check("LoRA trains (fp16)", c_lora)
     check("MoRA trains (fp16)", c_mora)
     check("BOFT trains (fp16)", c_boft)

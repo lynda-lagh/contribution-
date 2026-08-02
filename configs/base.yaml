@@ -11,10 +11,21 @@ model:
   name: Qwen/Qwen2.5-1.5B-Instruct
   # Only in-corpus precedent for a sub-7B model on KGC is GS-KGC Table 5
   # (Qwen2-1.5B vs 7B). Qwen2.5 chosen because FLAME validates the family.
-  dtype: fp16                 # T4 = Turing (SM 7.5) -> NO bf16 available
+  dtype: fp32                 # ⚠️ WEIGHTS in fp32; COMPUTE still fp16 via
+                              # train.fp16=true (autocast). This is what mixed
+                              # precision means, and it is NOT optional here:
+                              # Qwen2.5 was trained in bf16 and its activations
+                              # overflow fp16's ~65504 max. Loading the weights
+                              # in fp16 gives NaN logits on the very first
+                              # forward pass -> loss 0.0, grad_norm nan.
+                              # T4 is Turing, so native bf16 is unavailable;
+                              # fp32 weights + fp16 autocast is the way out.
+                              # Costs ~3.1 GB more for 1.5B. A 16 GB T4 absorbs it.
+                              # ★ Verify with: smoke_test "forward-pass dtype probe"
   trust_remote_code: false
   pad_token: eos              # Qwen has no dedicated pad token
-  attn_implementation: eager  # sdpa/flash may be unstable on T4
+  attn_implementation: sdpa   # fused and numerically safer than eager; held
+                              # constant across every condition
 
 # ---------------- data ----------------
 data:

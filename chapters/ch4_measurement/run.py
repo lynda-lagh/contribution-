@@ -98,7 +98,7 @@ def load(base: str, adapter: str | None):
         tok.pad_token = tok.eos_token
     tok.padding_side = "left"
     m = AutoModelForCausalLM.from_pretrained(
-        base, torch_dtype=torch.float16, attn_implementation="eager").cuda()
+        base, dtype=torch.float32, attn_implementation="sdpa").cuda()  # fp16 -> NaN
     if adapter:
         from peft import PeftModel
         m = PeftModel.from_pretrained(m, adapter)

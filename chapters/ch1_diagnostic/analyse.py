@@ -37,7 +37,10 @@ def load_model(base: str, adapter: str | None):
         tok.pad_token = tok.eos_token
     tok.padding_side = "left"                 # correct for next-token scoring
     model = AutoModelForCausalLM.from_pretrained(
-        base, torch_dtype=torch.float16, attn_implementation="eager").cuda()
+        # fp32: this is inference, so the memory is affordable, and Chapter 1's
+        # whole argument rests on these logits being real numbers. Qwen2.5 in
+        # fp16 returns NaN.
+        base, dtype=torch.float32, attn_implementation="sdpa").cuda()
     if adapter:
         from peft import PeftModel
         model = PeftModel.from_pretrained(model, adapter)
