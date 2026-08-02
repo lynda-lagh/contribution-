@@ -40,14 +40,31 @@ def c_gpu():
     n = torch.cuda.device_count()
     names = [torch.cuda.get_device_name(i) for i in range(n)]
     cc = torch.cuda.get_device_capability(0)
-    return f"-> {n} GPU(s) {names}, compute capability {cc[0]}.{cc[1]}"
+    # ★ More than one VISIBLE device makes HF Trainer wrap the model in
+    # DataParallel, and autocast does not reach DP replicas -- fp32 adapters then
+    # meet fp16 base weights. Fail here, loudly, rather than 20 steps in.
+    assert n == 1, (
+        f"{n} GPUs visible {names}. Trainer will use DataParallel and the fp16 "
+        f"training checks below WILL fail with 'mat1 and mat2 must have the same "
+        f"dtype'.\nRe-run pinned to one device:\n"
+        f"    CUDA_VISIBLE_DEVICES=0 python -m scripts.smoke_test\n"
+        f"Two T4s are for two INDEPENDENT jobs, not for splitting one."
+    )
+    return f"-> {n} GPU {names}, compute capability {cc[0]}.{cc[1]}"
 
 
 def c_bf16():
-    sup = torch.cuda.is_bf16_supported()
-    if sup:
-        return "-> bf16 SUPPORTED (Ampere+). You may use bf16."
-    return "-> bf16 NOT supported (expected on T4/P100). Use fp16 everywhere."
+    cc = torch.cuda.get_device_capability(0)
+    native = cc[0] >= 8                    # bf16 is native from Ampere (SM 8.0)
+    reported = torch.cuda.is_bf16_supported()
+    if native:
+        return "-> bf16 native (Ampere+). You may use bf16."
+    # ⚠️ is_bf16_supported() returns True on Turing because it counts emulation.
+    # T4 has no bf16 tensor cores; using it would be slow and is not what the
+    # frozen config specifies.
+    return (f"-> bf16 NOT native (SM {cc[0]}.{cc[1]}, Turing). "
+            f"torch reports {reported} because it counts emulation -- IGNORE THAT. "
+            f"Use fp16, as configs/base.yaml specifies.")
 
 
 def c_bnb():

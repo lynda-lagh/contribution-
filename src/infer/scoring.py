@@ -49,42 +49,59 @@ def yes_no_probabilities(
     ids = _first_token_ids(tokenizer, ["Yes", "No"])
     yes_ids, no_ids = ids["Yes"], ids["No"]
 
+    # ★ FORCE RIGHT PADDING FOR SCORING.
+    #
+    # Left padding is correct for *generation*, but for a single forward pass it
+    # creates a fully-masked prefix. With eager attention in fp16 those positions
+    # can produce NaN, and the NaN then propagates through the attention sum into
+    # positions that are perfectly valid -- so the last-token logits come back
+    # non-finite and every probability is silently meaningless.
+    #
+    # With RIGHT padding the pads sit AFTER the prompt. A causal model never
+    # attends forward, so they cannot contaminate anything, and the last real
+    # token is exactly attention_mask.sum() - 1.
+    prev_side = getattr(tokenizer, "padding_side", "right")
+    tokenizer.padding_side = "right"
+
     out: list[tuple[float, float]] = []
-    for i in range(0, len(prompts), batch_size):
+    try:
+      for i in range(0, len(prompts), batch_size):
         batch = prompts[i : i + batch_size]
         enc = tokenizer(batch, return_tensors="pt", padding=True,
                         truncation=True, max_length=512).to(device)
         logits = model(**enc).logits              # (B, T, V)
 
-        # ★ The prediction position depends on WHICH SIDE was padded.
-        #
-        #   right padding: [tok tok tok PAD PAD] -> last real token is at
-        #                  attention_mask.sum() - 1
-        #   left  padding: [PAD PAD tok tok tok] -> last real token is at T-1,
-        #                  and attention_mask.sum()-1 lands INSIDE THE PAD RUN
-        #
-        # Chapter 1 sets `padding_side = "left"` (correct for next-token scoring),
-        # so using the right-padding formula reads a padded position. Those
-        # positions attend to nothing, which in fp16 yields NaN logits -- the whole
-        # row of probabilities becomes NaN and the result is silently meaningless.
-        if getattr(tokenizer, "padding_side", "right") == "left":
-            next_logits = logits[:, -1, :]                       # (B, V)
-        else:
-            last_idx = enc["attention_mask"].sum(dim=1) - 1
-            rows = torch.arange(logits.size(0), device=logits.device)
-            next_logits = logits[rows, last_idx, :]              # (B, V)
+        # right padding is now guaranteed, so the last real token is here:
+        last_idx = enc["attention_mask"].sum(dim=1) - 1
+        rows = torch.arange(logits.size(0), device=logits.device)
+        next_logits = logits[rows, last_idx, :]              # (B, V)
 
+        # Fallback: if fp16 still produced non-finite values anywhere in the
+        # batch, redo those rows ONE AT A TIME with no padding at all. Slower,
+        # but it cannot be a padding artefact, and it beats silently scoring NaN.
         if not torch.isfinite(next_logits).all():
-            raise RuntimeError(
-                "Non-finite logits at the scoring position. Usually a padded "
-                "position was read (check tokenizer.padding_side) or fp16 overflow."
-            )
+            fixed = []
+            for prompt in batch:
+                e1 = tokenizer(prompt, return_tensors="pt",
+                               truncation=True, max_length=512).to(device)
+                l1 = model(**e1).logits[0, -1, :]
+                if not torch.isfinite(l1).all():
+                    raise RuntimeError(
+                        "Non-finite logits with a SINGLE unpadded prompt -- this is "
+                        "genuine fp16 overflow, not a padding artefact. Load the "
+                        "model in fp32 for scoring (it is inference only, so the "
+                        "extra memory is affordable)."
+                    )
+                fixed.append(l1)
+            next_logits = torch.stack(fixed)
 
         probs = F.softmax(next_logits.float(), dim=-1)
         p_yes = probs[:, yes_ids].sum(dim=-1)
         p_no = probs[:, no_ids].sum(dim=-1)
         denom = (p_yes + p_no).clamp_min(1e-12)
         out.extend(zip((p_yes / denom).tolist(), (p_no / denom).tolist()))
+    finally:
+        tokenizer.padding_side = prev_side        # leave the tokenizer as we found it
     return out
 
 

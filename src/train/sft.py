@@ -95,8 +95,16 @@ def _cast_trainable_to_fp32(model):
     exactly 0.0 with grad_norm=nan, which looks like a finished run. Any check
     that only asks "is the loss non-NaN" will pass it.
 
-    Layer norms are also promoted: they accumulate sums over the hidden
-    dimension and are the classic fp16 overflow site.
+    ⚠️ ONLY the trainable parameters are promoted. Do NOT also promote the layer
+    norms here: that makes `hidden_states` fp32, which then meets the still-fp16
+    frozen `base_layer` weight and raises
+
+        RuntimeError: mat1 and mat2 must have the same dtype, but got Float and Half
+
+    Under `Trainer(fp16=True)` the autocast context reconciles the mixed dtypes
+    for us -- but autocast does NOT propagate into `torch.nn.DataParallel`
+    replicas. So this function is only safe on a SINGLE visible GPU. See the
+    guard in `train_sft`.
     """
     import torch as _t
     n = 0
@@ -104,10 +112,6 @@ def _cast_trainable_to_fp32(model):
         if p.requires_grad:
             p.data = p.data.to(_t.float32)
             n += 1
-    for name, module in model.named_modules():
-        if "norm" in name.lower() and hasattr(module, "weight"):
-            if module.weight is not None and module.weight.dtype == _t.float16:
-                module.weight.data = module.weight.data.to(_t.float32)
     if n == 0:
         raise RuntimeError(
             "attach_peft produced a model with NO trainable parameters. "
@@ -115,6 +119,39 @@ def _cast_trainable_to_fp32(model):
             "(Qwen2.5 uses q_proj/k_proj/v_proj/o_proj/gate_proj/up_proj/down_proj)."
         )
     return model
+
+
+def assert_single_gpu() -> None:
+    """
+    ★ Refuse to train with more than one GPU VISIBLE.
+
+    With 2+ devices, HF Trainer silently wraps the model in `torch.nn.DataParallel`.
+    Two things then go wrong:
+
+      1. autocast does not propagate into DP replica threads, so fp32 adapters
+         meet fp16 base weights and the step dies with
+         "mat1 and mat2 must have the same dtype, but got Float and Half"
+         (reported as "Caught RuntimeError in replica 0 on device 0").
+      2. DataParallel is the wrong parallelism here anyway. Our plan is TWO
+         INDEPENDENT JOBS, one per T4 -- that is the throughput lever. DP would
+         instead split one batch across both cards, adding sync overhead for a
+         model that already fits on one.
+
+    Launch each run pinned to a single device:
+        CUDA_VISIBLE_DEVICES=0 python -m chapters.ch1_diagnostic.run ...
+        CUDA_VISIBLE_DEVICES=1 python -m chapters.ch2_adaptation.run ...
+    """
+    import os
+    import torch as _t
+    n = _t.cuda.device_count()
+    if n > 1:
+        raise RuntimeError(
+            f"{n} GPUs are visible. HF Trainer will wrap the model in DataParallel, "
+            f"which breaks autocast for fp32 adapters over an fp16 base.\n"
+            f"Re-launch pinned to one device, e.g.:\n"
+            f"    CUDA_VISIBLE_DEVICES=0 python -m <your module> ...\n"
+            f"(current CUDA_VISIBLE_DEVICES={os.environ.get('CUDA_VISIBLE_DEVICES', 'unset')})"
+        )
 
 
 def attach_peft(model, method: str, cfg: dict):
