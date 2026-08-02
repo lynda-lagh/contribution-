@@ -129,6 +129,31 @@ def _cast_trainable_to_fp32(model):
     return model
 
 
+def resolve_report_to(tcfg: dict) -> str:
+    """
+    ★ Never let telemetry kill a training run.
+
+    `report_to: wandb` with no `WANDB_API_KEY` raises
+
+        wandb.errors.errors.UsageError: No API key configured.
+
+    from inside `on_train_begin` -- i.e. AFTER the dataset is tokenised and the
+    model is on the GPU, so you pay the full setup cost and get nothing. On a
+    12-hour Kaggle budget that is real money.
+
+    Logging is a convenience; the run is the point. If the key is absent we fall
+    back to "none" and say so. Set WANDB_API_KEY in Kaggle Secrets (Add-ons >
+    Secrets) to turn logging back on.
+    """
+    import os
+    want = tcfg.get("report_to", "none")
+    if want in ("wandb", ["wandb"]) and not os.environ.get("WANDB_API_KEY"):
+        print("[train] WANDB_API_KEY not set -> report_to='none'. "
+              "Metrics still go to results/*.json; only the W&B dashboard is off.")
+        return "none"
+    return want
+
+
 def assert_single_gpu() -> None:
     """
     ★ Refuse to train with more than one GPU VISIBLE.
@@ -277,7 +302,7 @@ def train_sft(cfg: dict, data_dir: str, output_dir: str, run_name: str = "run") 
         save_total_limit=tcfg.get("save_total_limit", 2),
         load_best_model_at_end=False,
         torch_compile=bool(tcfg.get("torch_compile", False)),   # off on T4
-        report_to=tcfg.get("report_to", "none"),
+        report_to=resolve_report_to(tcfg),
         seed=cfg["seed"],
         remove_unused_columns=False,
     )

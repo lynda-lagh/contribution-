@@ -94,7 +94,9 @@ train:
   save_steps: 250
   save_total_limit: 2
   adapter_only_checkpoint: true   # KG-LLM's state_dict monkey-patch. ~20-100 MB.
-  report_to: wandb
+  report_to: wandb            # auto-falls back to "none" if WANDB_API_KEY is
+                              # unset -- telemetry must never kill a run.
+                              # To enable: Kaggle > Add-ons > Secrets > WANDB_API_KEY
 
 # ---------------- inference ----------------
 infer:

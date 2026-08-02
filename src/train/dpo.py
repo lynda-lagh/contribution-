@@ -42,7 +42,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from ..data.loaders import KG, Triple
 from ..data.negatives import make_negatives
 from ..data.prompts import ALPACA_NO_INPUT, NO, YES, PromptConfig, triple_classification_instruction
-from .sft import assert_single_gpu, load_dtype
+from .sft import assert_single_gpu, load_dtype, resolve_report_to
 
 
 def build_preference_pairs(kg: KG, triples: list[Triple], strategy: str = "type_consistent",
@@ -138,7 +138,7 @@ def train_dpo(cfg: dict, sft_adapter: str, pairs: list[dict], output_dir: str,
         save_total_limit=2,
         max_length=cfg["tokenizer"]["cutoff_len"],
         max_prompt_length=cfg["tokenizer"]["cutoff_len"] - 32,
-        report_to=tcfg.get("report_to", "none"),
+        report_to=resolve_report_to(tcfg),
         seed=cfg["seed"],
         torch_compile=False,
     )
