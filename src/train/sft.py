@@ -256,7 +256,22 @@ def attach_peft(model, method: str, cfg: dict):
         # running 1 instead of 2 means the reported method is not the method that
         # ran, and the LoRA/MoRA/BOFT comparison is no longer about what we say
         # it is about. Refuse rather than proceed.
-        msgs = " | ".join(str(w.message) for w in caught)
+        # dedupe: peft emits the same warning once PER WRAPPED LAYER (~dozens of
+        # target modules), AND each individual warning's own text is already the
+        # PREVIOUS attempts' text re-joined with " | " -- so the raw text is not
+        # just repeated lines, it's a snowball that re-includes earlier failures
+        # every time. Deduping whole messages alone still leaves one giant message.
+        # Split every message on its own " | " separator first, THEN dedupe across
+        # everything, so the real error survives instead of being buried under its
+        # own history.
+        seen, uniq = set(), []
+        for w in caught:
+            for frag in str(w.message).split(" | "):
+                frag = frag.strip()
+                if frag and frag not in seen:
+                    seen.add(frag)
+                    uniq.append(frag)
+        msgs = "\n  ".join(uniq)
         if want_bf != 1 and "butterfly_factor to 1" in msgs:
             raise RuntimeError(
                 f"BOFT downgraded boft_n_butterfly_factor {want_bf} -> 1 because its "

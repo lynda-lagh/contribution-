@@ -17,6 +17,18 @@ Pipeline
 """
 from __future__ import annotations
 
+import os
+
+# ★ MUST precede `from transformers import ...` below -- unlike ch1-3, this
+# file imports transformers directly, before any `src.*` import, so the fix
+# in `src/__init__.py` (USE_TF=0) runs too late to help here. Without this,
+# `set_all_seeds()` (via `load_config()`, further down) triggers
+# `transformers.set_seed()`, which imports the TensorFlow Kaggle ships but
+# this project never uses -- a slow, unrelated stall that looks like a crash
+# if the cell is interrupted mid-import. See src/__init__.py for the full story.
+os.environ.setdefault("USE_TF", "0")
+os.environ.setdefault("USE_FLAX", "0")
+
 import argparse
 import json
 import re

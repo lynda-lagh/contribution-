@@ -76,6 +76,23 @@ peft:
   bias: none
   task_type: CAUSAL_LM
 
+  # ---- BOFT only ----
+  boft_block_size: 4
+  # ⚠️ DELIBERATELY 1, NOT the paper's 2 -- and this must be REPORTED.
+  #
+  # peft compiles a CUDA kernel (`fbd_cuda`) for multi-stage butterfly factors.
+  # On Kaggle it fails to build: the kernel uses `at::DeprecatedTypeProperties`,
+  # which the CUDA 12.8 toolchain shipped with torch no longer accepts:
+  #     error: no suitable conversion function from
+  #     "const at::DeprecatedTypeProperties" to "c10::ScalarType" exists
+  # When that happens peft SILENTLY sets the factor to 1 and carries on.
+  #
+  # We cannot fix the toolchain on Kaggle, so we choose 1 openly rather than
+  # have it chosen for us. BOFT with a single butterfly stage is still a
+  # multiplicative ORTHOGONAL update -- the property Chapter 2 is testing --
+  # it simply composes fewer stages. State this in the paper's limitations.
+  boft_n_butterfly_factor: 1
+
 # ---------------- training ----------------
 train:
   epochs: 2                   # KG-LLM's value

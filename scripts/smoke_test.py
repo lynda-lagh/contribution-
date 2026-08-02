@@ -23,15 +23,26 @@ OK, FAIL, WARN = "  [OK]  ", "  [FAIL]", "  [WARN]"
 results: list[tuple[str, bool, str]] = []
 
 
+MAX_ERR_CHARS = 600   # safety net: no single failure should dump a screen-filling wall of text
+
+
+def _shorten(text: str, limit: int = MAX_ERR_CHARS) -> str:
+    text = str(text)
+    if len(text) <= limit:
+        return text
+    return text[:limit] + f"\n       ... [{len(text) - limit} more chars truncated]"
+
+
 def check(name: str, fn) -> None:
     try:
         msg = fn() or ""
         print(f"{OK} {name} {msg}")
         results.append((name, True, msg))
     except Exception as e:
-        print(f"{FAIL} {name}: {e}")
+        full = str(e)
+        print(f"{FAIL} {name}: {_shorten(full)}")
         traceback.print_exc(limit=1)
-        results.append((name, False, str(e)))
+        results.append((name, False, full))
 
 
 # ---------------------------------------------------------------- hardware
@@ -102,8 +113,15 @@ def c_stack_versions():
     try:
         import torchao
         ao = torchao.__version__
+        # transformers refuses to import if torchao is present but older than
+        # 0.16 -- and torchao is NOT needed for LoRA/BOFT/MoRA training at all.
+        # Removing it is safer than chasing a compatible version.
+        if tuple(int(x) for x in ao.split(".")[:2]) < (0, 16):
+            note += (f"\n       ⚠️ torchao {ao} < 0.16 will make LoRA fail with "
+                     f"'Found an incompatible version of torchao'.\n"
+                     f"          It is not needed here -> `pip uninstall -y torchao`")
     except Exception:
-        ao = "absent"
+        ao = "absent (good -- nothing here needs it)"
     return f"-> transformers {tv} | torchao {ao}{note}"
 
 
@@ -251,7 +269,13 @@ def _tiny_train(method: str, steps: int = 20):
     model.gradient_checkpointing_enable()
     model.enable_input_require_grads()
 
-    cfg = {"r": 8, "alpha": 16, "dropout": 0.05, "target_modules": ["q_proj", "v_proj"]}
+    # ★ Read the REAL config, do not hardcode. The smoke test previously built its
+    # own dict, so `boft_n_butterfly_factor` fell back to the default of 2 and BOFT
+    # failed here even after base.yaml was set to 1 -- the test was checking a
+    # configuration that no run would ever use.
+    import yaml
+    from pathlib import Path
+    cfg = yaml.safe_load(Path("configs/base.yaml").read_text(encoding="utf-8"))["peft"]
     model = attach_peft(model, method, cfg).cuda()
 
     recs = [{"instruction": f"Is this true: entity{i} related to entity{i+1}?",
@@ -359,37 +383,67 @@ if __name__ == "__main__":
         print("ALL PASSED -- safe to start Chapter 1.")
         sys.exit(0)
 
-    print(f"FAILED: {bad}\n")
+    by_name = {n: msg for n, ok, msg in results if not ok}
 
-    # ---- the one failure that is EXPECTED and is not a bug ----------------
-    mora_ok = any(n == "MoRA trains (fp16)" and ok for n, ok, _ in results)
-    boft_bad = "BOFT trains (fp16)" in bad
-    if mora_ok and boft_bad:
-        print("-" * 62)
-        print("★ MoRA works and BOFT does not. This is the KNOWN CONFLICT, not a bug")
-        print("  in your code:")
-        print()
-        print("    peft-mora is a FORK of peft 0.9.0. Installing it overwrites")
-        print("    official peft, and BOFT did not exist in 0.9.0.")
-        print("    The two CANNOT share one environment.")
-        print()
-        print("  Do NOT try to fix this. Split the work by session:")
-        print()
-        print("    session A (official peft):  pip install -U peft")
-        print("                                --peft lora   --peft boft")
-        print("    session B (the fork):       pip install git+https://github.com/"
-              "kongds/MoRA.git#subdirectory=peft-mora")
-        print("                                --peft mora")
-        print()
-        print("  ★ Run --peft lora in BOTH sessions. If the two LoRA numbers agree,")
-        print("    the peft version is not a confound and the arms are comparable.")
-        print("    That control costs one extra run and it is what makes the")
-        print("    three-way comparison defensible.")
-        print("-" * 62)
-        remaining = [b for b in bad if b != "BOFT trains (fp16)"]
-        if not remaining:
-            print("\nNothing else failed -> you may proceed with LoRA + MoRA now.")
-            sys.exit(0)
-        print(f"\nStill to fix: {remaining}")
+    # ---- classify each failure: EXPECTED (no action) vs NEEDS ACTION ------
+    # Both peft environments always fail one of {MoRA, BOFT} by design -- that
+    # is not a bug, it's the reason the two-session split exists. Recognize the
+    # known signatures and say so plainly instead of leaving a red FAIL to
+    # puzzle over.
+    expected, needs_action = [], []
 
-    sys.exit(1)
+    if "MoRA trains (fp16)" in by_name:
+        if "has no `use_mora`" in by_name["MoRA trains (fp16)"]:
+            expected.append((
+                "MoRA trains (fp16)",
+                "Expected in the OFFICIAL peft session. MoRA only runs in the fork\n"
+                "       (a FRESH session with the peft-mora fork installed, ENV='mora').\n"
+                "       Nothing to fix here -- proceed with lora/boft/probe in this session."
+            ))
+        else:
+            needs_action.append("MoRA trains (fp16)")
+
+    if "BOFT trains (fp16)" in by_name:
+        boft_msg = by_name["BOFT trains (fp16)"]
+        if "downgraded boft_n_butterfly_factor" in boft_msg:
+            import yaml
+            from pathlib import Path
+            try:
+                configured = (yaml.safe_load(Path("configs/base.yaml").read_text(encoding="utf-8"))
+                              ["peft"].get("boft_n_butterfly_factor"))
+            except Exception:
+                configured = None
+            if configured == 1:
+                expected.append((
+                    "BOFT trains (fp16)",
+                    "BOFT's CUDA kernel (fbd_cuda) won't compile in this environment (torch/nvcc\n"
+                    "       version mismatch -- a peft-side issue, not your code). It falls back to\n"
+                    "       boft_n_butterfly_factor=1, and configs/base.yaml already pins that value\n"
+                    "       DELIBERATELY, so this is the fallback you already chose, confirmed working.\n"
+                    "       Nothing to fix -- just report BOFT ran single-butterfly-stage."
+                ))
+            else:
+                needs_action.append("BOFT trains (fp16)")
+                print("! BOFT wants to silently drop to boft_n_butterfly_factor=1 but "
+                      "configs/base.yaml does not\n  pin it there yet -- set it explicitly "
+                      "(see message above) or fix the CUDA build.")
+        else:
+            needs_action.append("BOFT trains (fp16)")
+
+    for n in by_name:
+        if n not in ("MoRA trains (fp16)", "BOFT trains (fp16)"):
+            needs_action.append(n)
+
+    if expected:
+        print("-" * 62)
+        print("KNOWN / EXPECTED -- no action needed:")
+        for n, note in expected:
+            print(f"\n  * {n}\n       {note}")
+        print("-" * 62)
+
+    if needs_action:
+        print(f"\nNEEDS ATTENTION: {needs_action}")
+        sys.exit(1)
+
+    print("\nEverything else passed -- safe to proceed in this session.")
+    sys.exit(0)
