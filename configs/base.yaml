@@ -78,20 +78,31 @@ peft:
 
   # ---- BOFT only ----
   boft_block_size: 4
-  # ⚠️ DELIBERATELY 1, NOT the paper's 2 -- and this must be REPORTED.
+  # ⚠️ 1, NOT the paper's 2 -- and if it stays 1 that must be REPORTED.
   #
   # peft compiles a CUDA kernel (`fbd_cuda`) for multi-stage butterfly factors.
-  # On Kaggle it fails to build: the kernel uses `at::DeprecatedTypeProperties`,
-  # which the CUDA 12.8 toolchain shipped with torch no longer accepts:
+  # On Kaggle it fails to build, because peft 0.19.1's fbd_cuda_kernel.cu passes
+  # `Tensor.type()` (-> at::DeprecatedTypeProperties) to AT_DISPATCH, and current
+  # torch wants a c10::ScalarType:
   #     error: no suitable conversion function from
   #     "const at::DeprecatedTypeProperties" to "c10::ScalarType" exists
-  # When that happens peft SILENTLY sets the factor to 1 and carries on.
+  # When that happens peft SILENTLY sets the factor to 1 and carries on -- which
+  # changes the METHOD, so src/train/sft.py refuses to let it pass unnoticed.
   #
-  # We cannot fix the toolchain on Kaggle, so we choose 1 openly rather than
-  # have it chosen for us. BOFT with a single butterfly stage is still a
-  # multiplicative ORTHOGONAL update -- the property Chapter 2 is testing --
-  # it simply composes fewer stages. State this in the paper's limitations.
-  boft_n_butterfly_factor: 1
+  # ★ THERE IS A FIX. `.type()` -> `.scalar_type()` is the modern spelling of the
+  #   same call. Notebook section "1b · BOFT CUDA kernel patch" applies it to
+  #   site-packages and verifies the compile. It must re-run each fresh session.
+  #     * patch cell prints BUILD OK          -> set this to 2 (BOFT as published)
+  #     * patch cell prints BUILD STILL FAILS -> leave it at 1
+  #
+  # STATUS: the patch WORKED on Kaggle (2026-08-02). nvcc compiled fbd_cuda --
+  # the smoke test showed `ninja: no work to do` where the errors used to be,
+  # and BOFT's 20-step time fell 16.0s -> 7.5s as the CUDA path took over.
+  # So this is now 2, the published value, and NO limitation needs reporting.
+  #
+  # If a future session's patch cell prints BUILD STILL FAILS, put this back to
+  # 1 -- sft.py will refuse to run 2 silently, so you will be told, not guessed at.
+  boft_n_butterfly_factor: 2
 
 # ---------------- training ----------------
 train:
