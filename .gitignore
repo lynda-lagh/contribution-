@@ -1,0 +1,35 @@
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+data/*/built/
+checkpoints/
+results/*.json
+wandb/
+*.egg-info/
+.venv/
+
+# ---- Thesis documents — NOT published to GitHub ----------------------------
+# The repo publishes CODE. The reasoning behind the code is unpublished thesis
+# work and stays local until submission.
+#
+#   REFERENCES.md               every design decision -> paper -> quotation
+#   KGLLM_INHERITED_VS_ADDED.md what is inherited vs what is the contribution
+#   STATUS.md                   internal build state, audit log, open items
+#   DEPLOY.md                   Kaggle run instructions
+#
+# ⚠️ ALL FOUR STILL EXIST ON DISK. They are untracked, not deleted — and so
+#    they are NOT BACKED UP by this repo. Copy them somewhere else.
+REFERENCES.md
+KGLLM_INHERITED_VS_ADDED.md
+STATUS.md
+DEPLOY.md
+
+# ---- The paper — NOT published to GitHub -----------------------------------
+# The manuscript, figure and bibliography stay local. The repo publishes the
+# CODE only; the write-up is unpublished work and stays off a public remote
+# until it is submitted.
+#
+# ⚠️ The files still exist on disk in paper/ — they are simply untracked.
+#    Back them up somewhere else (OneDrive, a private repo, a USB stick):
+#    once they are gitignored, a lost laptop loses the paper.
+paper/

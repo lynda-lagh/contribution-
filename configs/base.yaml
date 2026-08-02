@@ -1,0 +1,92 @@
+# =================================================================
+# FIXED CONFIGURATION -- frozen across every run.
+# Only the variable under test may change (via CLI overrides).
+# Justification for each value is in the comment.
+# =================================================================
+
+seed: 42                      # identical across all conditions (P05's protocol)
+
+# ---------------- model ----------------
+model:
+  name: Qwen/Qwen2.5-1.5B-Instruct
+  # Only in-corpus precedent for a sub-7B model on KGC is GS-KGC Table 5
+  # (Qwen2-1.5B vs 7B). Qwen2.5 chosen because FLAME validates the family.
+  dtype: fp16                 # T4 = Turing (SM 7.5) -> NO bf16 available
+  trust_remote_code: false
+  pad_token: eos              # Qwen has no dedicated pad token
+  attn_implementation: eager  # sdpa/flash may be unstable on T4
+
+# ---------------- data ----------------
+data:
+  root: data
+  train_triples: 10000        # -> ~20,000 instances (KG-LLM emits 1 pos + 1 neg per triple)
+  sampling: stratified_by_relation
+  min_per_relation: 10        # rare relations must survive (cf. TSP's sisterOf argument)
+  val_size: 1000              # KG-LLM uses 2000 -- too large at 10k triples
+  test_subset: 2000           # fixed subset, identical across conditions -> PAIRED tests
+                              # (KG-LLM used 100; APE used 200)
+  negatives: random           # KG-LLM baseline: random.choice(all_entities)
+                              # alternatives: kge_near_miss | type_consistent
+
+# ---------------- tokenisation ----------------
+tokenizer:
+  cutoff_len: 512             # generous ON PURPOSE -- dynamic padding makes it ~free.
+                              # KG-LLM used 50 with padding="max_length" and truncated.
+  padding: dynamic            # <-- the change that removes any need to tune length
+  add_eos_token: true
+
+# ---------------- prompt ----------------
+prompt:
+  template: alpaca            # keep KG-LLM's wrapper for comparability
+  include_entity_description: true    # Knit: 0.2240 -> 0.2490 on WN18RR. Free.
+  regenerate_entity_description: false # ColKGC: rewriting existing ones ~= 0 gain
+  include_relation_description: false  # Chapter 3 turns this on
+  include_exclusion_list: false        # Chapter 3
+  include_type_tag: false              # Chapter 3
+  include_neighbours: false            # GS-KGC: neighbours ALONE score BELOW no-context
+
+# ---------------- PEFT (baseline; see configs/peft_*.yaml) ----------------
+peft:
+  method: lora
+  r: 8
+  alpha: 16
+  dropout: 0.05
+  target_modules: [q_proj, v_proj]   # KG-LLM's, and MKGL's. FIXED across all methods.
+  bias: none
+  task_type: CAUSAL_LM
+
+# ---------------- training ----------------
+train:
+  epochs: 2                   # KG-LLM's value
+  learning_rate: 3.0e-4       # KG-LLM's value
+  micro_batch_size: 4
+  grad_accum_steps: 8         # -> effective batch 32
+                              # NOT KG-LLM's 128: at 20k instances that gives only
+                              # 156 steps/epoch, so warmup(100) = 32% of training.
+  warmup_steps: 100           # ~8% of ~1250 steps
+  optim: adamw_torch
+  gradient_checkpointing: true
+  torch_compile: false        # unreliable on T4
+  fp16: true
+  logging_steps: 20
+  eval_steps: 250
+  save_steps: 250
+  save_total_limit: 2
+  adapter_only_checkpoint: true   # KG-LLM's state_dict monkey-patch. ~20-100 MB.
+  report_to: wandb
+
+# ---------------- inference ----------------
+infer:
+  greedy:                     # for Hits@1
+    do_sample: false
+    max_new_tokens: 16
+  sampling:                   # ONE loop, TWO uses: Hits@K *and* uncertainty
+    do_sample: true
+    top_p: 0.95               # GS-KGC's setting
+    top_k: 20                 # GS-KGC's setting
+    num_return_sequences: 10
+
+# ---------------- output ----------------
+output:
+  results_dir: results
+  adapter_dir: checkpoints

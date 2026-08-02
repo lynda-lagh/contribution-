@@ -1,0 +1,61 @@
+# ---------------------------------------------------------------
+# Kaggle T4 x2 compatible.  T4 = Turing (SM 7.5) -> fp16 only, NO bf16.
+# Install order matters: peft-mora is a FORK of peft and must come last.
+# ---------------------------------------------------------------
+
+# --- core ---
+torch>=2.1.0
+transformers>=4.44.0,<5.0.0
+datasets>=2.19.0
+accelerate>=0.30.0
+sentencepiece>=0.2.0
+protobuf>=3.20.0
+safetensors>=0.4.0
+
+# --- PEFT ---
+# Official peft provides LoRA + BOFT.
+peft>=0.11.0
+
+# --- quantisation (needed only for the 7B confirmation runs) ---
+# bitsandbytes requires SM >= 7.5 -> works on T4, NOT on P100.
+bitsandbytes>=0.43.0
+
+# --- preference optimisation (Chapter 2, phase 2) ---
+trl>=0.9.0
+
+# --- KGE for hard negatives (Chapter 2) ---
+# Used to retrieve near-miss entities instead of random corruption.
+pykeen>=1.10.0
+
+# --- metrics / analysis ---
+scikit-learn>=1.3.0     # isotonic regression, calibration_curve
+scipy>=1.11.0           # wilcoxon, ttest_rel, mcnemar
+numpy>=1.24.0
+pandas>=2.0.0
+matplotlib>=3.7.0       # reliability diagrams, risk-coverage curves
+
+# --- config / logging ---
+pyyaml>=6.0
+tqdm>=4.66.0
+wandb>=0.17.0
+
+# ---------------------------------------------------------------
+# MoRA  --  install SEPARATELY, AFTER everything above.
+# It is a fork of peft (peft-mora) and WILL overwrite the official peft.
+# Verify it does not break BOFT before committing to it.
+#
+#   pip install git+https://github.com/kongds/MoRA.git#subdirectory=peft-mora
+#
+# If it conflicts, fall back to LoRA vs BOFT only -- still two distinct
+# mechanisms (additive low-rank vs multiplicative orthogonal).
+# ---------------------------------------------------------------
+
+# --- web app (Chapter 5 / demo) ---
+# Streamlit is sufficient: pyvis renders a 1-2 hop neighbourhood as embedded HTML.
+# Do NOT build React -- weeks you do not have, and nothing a jury values.
+streamlit>=1.36.0
+pyvis>=0.3.2
+
+# Optional graph backend. Only install if your supervisor requires Neo4j -- the
+# memory backend reads the TSVs directly and needs no server.
+# neo4j>=5.20.0
