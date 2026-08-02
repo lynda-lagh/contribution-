@@ -11,21 +11,31 @@ model:
   name: Qwen/Qwen2.5-1.5B-Instruct
   # Only in-corpus precedent for a sub-7B model on KGC is GS-KGC Table 5
   # (Qwen2-1.5B vs 7B). Qwen2.5 chosen because FLAME validates the family.
-  dtype: fp32                 # ⚠️ WEIGHTS in fp32; COMPUTE still fp16 via
-                              # train.fp16=true (autocast). This is what mixed
-                              # precision means, and it is NOT optional here:
-                              # Qwen2.5 was trained in bf16 and its activations
-                              # overflow fp16's ~65504 max. Loading the weights
-                              # in fp16 gives NaN logits on the very first
-                              # forward pass -> loss 0.0, grad_norm nan.
-                              # T4 is Turing, so native bf16 is unavailable;
-                              # fp32 weights + fp16 autocast is the way out.
-                              # Costs ~3.1 GB more for 1.5B. A 16 GB T4 absorbs it.
-                              # ★ Verify with: smoke_test "forward-pass dtype probe"
+  dtype: fp16                 # T4 = Turing (SM 7.5) -> no native bf16.
+                              # fp16 is SAFE HERE, but ONLY with sdpa attention.
   trust_remote_code: false
   pad_token: eos              # Qwen has no dedicated pad token
-  attn_implementation: sdpa   # fused and numerically safer than eager; held
-                              # constant across every condition
+
+  # ★★ attn_implementation IS A CORRECTNESS SETTING, NOT A SPEED SETTING.
+  #
+  # Measured on T4 (smoke_test "forward-pass dtype probe", Qwen2.5-1.5B):
+  #
+  #     dtype  attn    finite  max|logit|  VRAM GB
+  #     fp16   eager    False        nan      3.11   <-- NaN. Silent killer.
+  #     fp16   sdpa      True       27.2      3.12   <-- what we use
+  #     fp32   eager     True       27.3      6.22
+  #     fp32   sdpa      True       27.3      6.23
+  #
+  # `eager` in fp16 returns NaN logits on the FIRST forward pass, which surfaces
+  # as train_loss=0.0 with grad_norm=nan and looks like a finished run.
+  # This config previously said eager "because sdpa may be unstable on T4" --
+  # that was backwards, and the probe above is the evidence.
+  #
+  # fp32 also works and is the fallback, but it DOUBLES weight memory
+  # (3.1 -> 6.2 GB) and MoRA already peaked at 12.4 GB on a 16 GB card.
+  #
+  # ⚠️ Re-run the probe if you change model or transformers version.
+  attn_implementation: sdpa
 
 # ---------------- data ----------------
 data:

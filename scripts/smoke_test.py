@@ -186,16 +186,12 @@ def _tiny_train(method: str, steps: int = 20):
     tok = AutoTokenizer.from_pretrained(MODEL)
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
-    # ★ WEIGHTS IN fp32, COMPUTE IN fp16 via TrainingArguments(fp16=True).
-    #
-    # That is what "mixed precision" actually means: fp32 master weights, fp16
-    # activations, and autocast keeping the overflow-prone ops (softmax, layer
-    # norm, loss) in fp32. Loading the WEIGHTS in fp16 instead is what made
-    # Qwen2.5 return NaN before a single step ran.
-    #
-    # Cost: ~3.1 GB extra for a 1.5B model. A 16 GB T4 absorbs it.
+    # Matches configs/base.yaml: fp16 weights + SDPA attention.
+    # ⚠️ attn="eager" here returns NaN in fp16 -- see the dtype probe above.
+    # The fp32 adapters (from _cast_trainable_to_fp32) meet the fp16 base under
+    # autocast, which is why this must run on a SINGLE GPU.
     model = AutoModelForCausalLM.from_pretrained(
-        MODEL, dtype=torch.float32, attn_implementation="sdpa")
+        MODEL, dtype=torch.float16, attn_implementation="sdpa")
     model.config.use_cache = False
     model.gradient_checkpointing_enable()
     model.enable_input_require_grads()
