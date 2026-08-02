@@ -223,6 +223,8 @@ def attach_peft(model, method: str, cfg: dict):
 def train_sft(cfg: dict, data_dir: str, output_dir: str, run_name: str = "run") -> dict:
     from datasets import Dataset
 
+    assert_single_gpu()   # ★ must precede model loading -- see the docstring
+
     mcfg, tcfg, pcfg, tokcfg = cfg["model"], cfg["train"], cfg["peft"], cfg["tokenizer"]
 
     tokenizer = AutoTokenizer.from_pretrained(

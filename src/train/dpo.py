@@ -42,7 +42,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from ..data.loaders import KG, Triple
 from ..data.negatives import make_negatives
 from ..data.prompts import ALPACA_NO_INPUT, NO, YES, PromptConfig, triple_classification_instruction
-from .sft import load_dtype
+from .sft import assert_single_gpu, load_dtype
 
 
 def build_preference_pairs(kg: KG, triples: list[Triple], strategy: str = "type_consistent",
@@ -102,6 +102,7 @@ def train_dpo(cfg: dict, sft_adapter: str, pairs: list[dict], output_dir: str,
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
 
+    assert_single_gpu()   # DataParallel breaks autocast for fp32 adapters
     base = AutoModelForCausalLM.from_pretrained(
         # dtype from config (fp16), attention MUST be sdpa -- eager returns NaN
         # in fp16, and DPO's implicit reward is a difference of log-probs, so one
