@@ -139,9 +139,43 @@ def main() -> None:
 
     anon_dir = Path(cfg["output"]["adapter_dir"], f"ch1-{ns.dataset}-anon-{cfg['peft']['method']}")
     if anon_dir.exists():
-        print("[ch1] TUNED (anonymised)")
+        # ★★ THE ANONYMISED ARM MUST BE EVALUATED ON ANONYMISED PROMPTS.
+        #
+        # This adapter was trained on `entity1234`-style identifiers. Scoring it
+        # against real entity names measures DISTRIBUTION SHIFT (train/test
+        # mismatch), not memorisation -- accuracy would collapse for the wrong
+        # reason and `memorisation` in the decomposition would be inflated by
+        # however much the mismatch costs.
+        #
+        # The contamination control (KG-CF) asks a single question: how much
+        # accuracy survives when surface forms carry no pretraining signal?
+        # Both training AND evaluation must therefore be anonymised, and the
+        # only thing differing from the `tuned` arm is the surface forms.
+        anon_path = Path(root, f"{ns.dataset}-anon", "built", "test_instructions.json")
+        if not anon_path.exists():
+            raise FileNotFoundError(
+                f"{anon_path} not found. Build it first:\n"
+                f"  python -m src.data.build_instructions --dataset {ns.dataset} "
+                f"--n_triples {cfg['data']['train_triples']} --seed {cfg['seed']} --anonymise"
+            )
+        test_a = json.loads(anon_path.read_text(encoding="utf-8"))[: ns.limit]
+        prompts_a = [ALPACA_NO_INPUT.format(instruction=r["instruction"]) for r in test_a]
+        labels_a = [r["label"] for r in test_a]
+
+        # Both files are built from kg.test in order, so the two arms must be
+        # item-for-item paired. If they are not, the comparison is not paired and
+        # McNemar does not apply.
+        if labels_a != labels:
+            raise RuntimeError(
+                "Anonymised test labels differ from the plain ones -- the two "
+                "arms are not item-for-item paired, so the memorisation estimate "
+                "and the paired significance tests would both be invalid. "
+                "Rebuild both with the SAME --seed."
+            )
+
+        print(f"[ch1] TUNED (anonymised)  [{len(prompts_a)} anonymised prompts]")
         m, t = load_model(base, str(anon_dir))
-        out["tuned_anon"] = evaluate(m, t, prompts, labels, "anon")
+        out["tuned_anon"] = evaluate(m, t, prompts_a, labels_a, "anon")
         del m; torch.cuda.empty_cache()
 
     for cond in ("untuned", "tuned"):
