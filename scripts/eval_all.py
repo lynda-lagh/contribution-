@@ -129,25 +129,51 @@ def score(gold: list[str], pred: list[str]) -> dict:
     }
 
 
+def pick_device(requested: str = "auto") -> str:
+    if requested != "auto":
+        return requested
+    return "cuda" if torch.cuda.is_available() else "cpu"
+
+
+DTYPES = {"fp32": torch.float32, "fp16": torch.float16, "bf16": torch.bfloat16}
+
+
 @torch.no_grad()
 def evaluate(base: str, adapter: str | None, prompts: list[str], gold: list[str],
-             batch_size: int = 8) -> dict:
+             batch_size: int = 8, device: str = "cuda", dtype: str = "fp32") -> dict:
     tok = AutoTokenizer.from_pretrained(adapter or base)
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
-    # fp32: this is the measurement the chapters rest on; fp16 risks NaN logits
+
+    # ★ DTYPE IS A MEMORY *AND* CORRECTNESS SETTING.
+    #
+    # fp32 is the default because the chapters' numbers rest on these logits.
+    # But fp32 weights for Qwen2.5-1.5B are ~6.2 GB and will NOT fit a 4 GB card.
+    #
+    # fp16 IS SAFE HERE -- but only with sdpa. The smoke test's dtype probe
+    # measured exactly this on a T4:
+    #
+    #     dtype  attn    finite  max|logit|
+    #     fp16   eager    False       nan   <-- the NaN everyone warns about
+    #     fp16   sdpa      True      27.2   <-- indistinguishable from fp32
+    #     fp32   sdpa      True      27.3
+    #
+    # So the danger is EAGER, not fp16. attn_implementation is pinned to sdpa
+    # below, which is what makes --dtype fp16 defensible on a small GPU.
+    # bf16 is offered for Ampere+ cards (RTX 30xx); it is NOT native on T4.
     m = AutoModelForCausalLM.from_pretrained(
-        base, dtype=torch.float32, attn_implementation="sdpa").cuda()
+        base, dtype=DTYPES[dtype], attn_implementation="sdpa").to(device)
     if adapter:
         from peft import PeftModel
         m = PeftModel.from_pretrained(m, adapter)
     m.eval()
 
-    probs = yes_no_probabilities(m, tok, prompts, batch_size=batch_size)
+    probs = yes_no_probabilities(m, tok, prompts, batch_size=batch_size, device=device)
     pred = ["yes" if py >= pn else "no" for py, pn in probs]
 
     del m
-    torch.cuda.empty_cache()
+    if device == "cuda":
+        torch.cuda.empty_cache()
     out = score(gold, pred)
     out["mean_p_yes"] = sum(p for p, _ in probs) / len(probs) if probs else 0.0
     return out
@@ -163,7 +189,25 @@ def main() -> None:
     ap.add_argument("--batch-size", type=int, default=8)
     ap.add_argument("--untuned", action="store_true",
                     help="also score the BASE model -- the floor every adapter must beat")
+    ap.add_argument("--device", default="auto", choices=["auto", "cuda", "cpu"])
+    ap.add_argument("--dtype", default="fp32", choices=["fp32", "fp16", "bf16"],
+                    help="fp32 needs ~6.2 GB; use fp16 on a 4-6 GB card (safe with sdpa)")
     ns = ap.parse_args()
+
+    device = pick_device(ns.device)
+    print(f"[eval] device={device}  dtype={ns.dtype}  batch={ns.batch_size}")
+    if device == "cuda":
+        free, total = torch.cuda.mem_get_info()
+        gb = total / 1e9
+        need = {"fp32": 6.2, "fp16": 3.1, "bf16": 3.1}[ns.dtype]
+        print(f"[eval] GPU {torch.cuda.get_device_name(0)}  {gb:.1f} GB total, "
+              f"{free/1e9:.1f} GB free | weights need ~{need} GB")
+        if need > free / 1e9:
+            raise SystemExit(
+                f"\n{ns.dtype} weights (~{need} GB) do not fit in {free/1e9:.1f} GB free.\n"
+                f"  * on a 4 GB card:  --dtype fp16 --batch-size 1\n"
+                f"  * still tight?     --device cpu   (slow but correct)\n"
+                f"fp16 is SAFE with sdpa -- see the dtype probe note in evaluate().")
 
     from src.utils.config import load_config
     cfg = load_config(ns.config)
@@ -200,7 +244,8 @@ def main() -> None:
             if data is None:
                 continue
             print(f"\n[untuned] {ds} ...")
-            r = evaluate(base, None, *data, batch_size=ns.batch_size)
+            r = evaluate(base, None, *data, batch_size=ns.batch_size,
+                         device=device, dtype=ns.dtype)
             rows.append({"adapter": f"UNTUNED ({ds})", "dataset": ds,
                          "chapter": "baseline", "peft": "none", **r})
             print(f"          acc {r['accuracy']:.4f}  yes-rate {r['predicted_yes_rate']:.3f}")
@@ -215,7 +260,8 @@ def main() -> None:
             print(f"\n[skip] {a}: data/{ds}/built/test_instructions.json not found")
             continue
         print(f"\n[eval] {a}  on  {ds} ...")
-        r = evaluate(base, str(ckpt_root / a), *data, batch_size=ns.batch_size)
+        r = evaluate(base, str(ckpt_root / a), *data, batch_size=ns.batch_size,
+                     device=device, dtype=ns.dtype)
         rows.append({"adapter": a, "dataset": ds,
                      "chapter": a.split("-")[0], "peft": a.split("-")[-1], **r})
         flag = "  ⚠️ single-class" if r["single_class_test_set"] else ""
