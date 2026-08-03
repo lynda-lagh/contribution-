@@ -92,11 +92,44 @@ def clean_verdict(text: str) -> str | None:
     return None
 
 
+def looks_binary(golds: list[str], threshold: float = 0.9) -> bool:
+    """
+    ★ DECIDE THE TASK FROM THE DATA, NOT FROM THE DATASET NAME.
+
+    This was previously `ns.dataset in ("WN11", "FB13")`, which is wrong twice over:
+
+      1. `build_instructions` emits the FIXED strings prompts.YES / prompts.NO
+         ("Yes, this is true." / "No, this is not true.") for EVERY dataset, so
+         YAGO3-10 and WN18RR are binary too. The name test called them entity
+         prediction and scored them with the wrong rule.
+      2. Chapters 2 and 3 build SUFFIXED variants -- YAGO3-10-E123182,
+         YAGO3-10-L3 -- so even WN11-anon would have missed a literal name list.
+
+    The symptom was unmistakable and should never have been reportable:
+    Hits@1 = 0.56 with Hits@3 = 0.00, which is impossible (hits@3 contains
+    hits@1). `correctness` took the entity branch, where `_norm` truncates at the
+    first comma so "Yes, this is true." -> "yes" and matched by accident, while
+    `hits_at_k` uses generate._normalise, which does NOT split on commas
+    ("yes this is true") and therefore never matched.
+
+    A gold set is binary if nearly all of it parses to a yes/no verdict AND the
+    surface strings are few -- entity-prediction golds are thousands of distinct
+    names, binary golds are two.
+    """
+    if not golds:
+        return False
+    parsed = sum(clean_verdict(g) is not None for g in golds) / len(golds)
+    distinct = len({_norm(g) for g in golds})
+    return parsed >= threshold and distinct <= 4
+
+
 def correctness(preds: list[str], golds: list[str], *, binary: bool) -> list[bool]:
     """
-    binary=True  (WN11 / FB13): compare VERDICTS, not string prefixes.
-    binary=False (WN18RR / YAGO3-10): normalised match on the entity name -- the
-                 same rule `hits_at_k` applies, so hits@1 and hits@3 stay consistent.
+    binary=True  : compare VERDICTS, not string prefixes.
+    binary=False : normalised match on the entity name -- the same rule
+                   `hits_at_k` applies, so hits@1 and hits@3 stay consistent.
+
+    ⚠️ `binary` must come from `looks_binary(golds)`, not from the dataset name.
     """
     if binary:
         return [(v := clean_verdict(pr)) is not None and v == clean_verdict(g)
@@ -140,7 +173,11 @@ def main() -> None:
                            "test_instructions.json").read_text(encoding="utf-8"))[: ns.limit]
     prompts = [ALPACA_NO_INPUT.format(instruction=r["instruction"]) for r in test]
     golds = [r.get("output", "") for r in test]
-    is_binary = ns.dataset in ("WN11", "FB13")
+
+    # ★ inferred from the GOLDS, never from the dataset name -- see looks_binary()
+    is_binary = looks_binary(golds)
+    print(f"[ch4] task detected: {'BINARY triple classification' if is_binary else 'ENTITY prediction'}"
+          f"  ({len({_norm(g) for g in golds})} distinct gold surfaces)")
 
     # ★ ALIGNMENT GUARD. Steps 5 (hallucination) zips `kg.test` against `greedy`
     # POSITIONALLY. test_instructions.json is written from kg.test in order, so this
@@ -164,14 +201,33 @@ def main() -> None:
     # entity-prediction datasets. Chapter 1 built four parsers precisely so that
     # scoring is never ad hoc -- so we reuse them.
     correct = np.array(correctness(greedy, golds, binary=is_binary))
-    metrics = {
-        "hits_at_1": float(correct.mean()),
-        "hits_at_3": hits_at_k(preds, golds, 3),
-        "hits_at_10": hits_at_k(preds, golds, min(ns.k, 10)),
-        "note": "MRR is NOT computable: sampling yields a SET, not a ranking",
-    }
-    print(f"[ch4] Hits@1 {metrics['hits_at_1']:.4f} | @3 {metrics['hits_at_3']:.4f} "
-          f"| @10 {metrics['hits_at_10']:.4f}")
+
+    # ★ Hits@K IS NOT DEFINED ON A BINARY TASK.
+    # With two possible answers, "is the gold among the top 3 sampled" is ~always
+    # true and measures nothing. Worse, reporting it produced the impossible
+    # Hits@1=0.56 / Hits@3=0.00 that exposed the task-detection bug. Emit None,
+    # not 0.0 -- a zero looks like a measurement, a null does not.
+    if is_binary:
+        metrics = {
+            "task": "binary",
+            "accuracy": float(correct.mean()),
+            "chance": 0.5,
+            "hits_at_1": None, "hits_at_3": None, "hits_at_10": None,
+            "note": "Hits@K undefined on binary triple classification "
+                    "(2 possible answers); report accuracy against chance = 0.5",
+        }
+        print(f"[ch4] accuracy {metrics['accuracy']:.4f}  (binary, chance 0.500)")
+    else:
+        metrics = {
+            "task": "entity_prediction",
+            "accuracy": float(correct.mean()),
+            "hits_at_1": float(correct.mean()),
+            "hits_at_3": hits_at_k(preds, golds, 3),
+            "hits_at_10": hits_at_k(preds, golds, min(ns.k, 10)),
+            "note": "MRR is NOT computable: sampling yields a SET, not a ranking",
+        }
+        print(f"[ch4] Hits@1 {metrics['hits_at_1']:.4f} | @3 {metrics['hits_at_3']:.4f} "
+              f"| @10 {metrics['hits_at_10']:.4f}")
 
     # 2 -- three confidence sources ------------------------------------------
     print("[ch4] sequence log-probabilities ...")
@@ -196,20 +252,38 @@ def main() -> None:
                              out_path=str(res_dir / "abstention.json"))
 
     # 5 -- hallucination ------------------------------------------------------
-    print("[ch4] hallucination rates ...")
-    rels = [t.relation for t in kg.test[: len(greedy)]]
-    gold_ids = [t.tail for t in kg.test[: len(greedy)]]
-    hall = hallucination_report(greedy, rels, gold_ids, kg,
-                                out_path=str(res_dir / "hallucination.json"))
+    # ★ REQUIRES ENTITY PREDICTIONS. On the binary task every prediction is
+    # "Yes, this is true." -- not an entity -- so type1 OOV comes out 100% and
+    # type2 comes out 0% TRIVIALLY, by construction. Those are not measurements
+    # and must never be set beside GS-KGC's 38.9-45.3% OOV baseline.
+    if is_binary:
+        print("[ch4] hallucination: SKIPPED -- needs entity predictions, this is "
+              "the binary task (predictions are Yes/No, not entities)")
+        hall = {
+            "skipped": True,
+            "reason": "binary triple classification: predictions are verdicts, not "
+                      "entities, so OOV and type-violation are undefined. Build a "
+                      "tail-prediction variant of the data to measure these.",
+            "type1_oov_rate": None, "type2_rate": None, "plausible_wrong_rate": None,
+        }
+    else:
+        print("[ch4] hallucination rates ...")
+        rels = [t.relation for t in kg.test[: len(greedy)]]
+        gold_ids = [t.tail for t in kg.test[: len(greedy)]]
+        hall = hallucination_report(greedy, rels, gold_ids, kg,
+                                    out_path=str(res_dir / "hallucination.json"))
 
     # 6 -- summary ------------------------------------------------------------
     summary = {
         "adapter": ns.adapter, "dataset": ns.dataset, "n_test": len(prompts), "k": ns.k,
+        "task": "binary" if is_binary else "entity_prediction",
         "metrics": metrics,
         "best_confidence_source": best,
         "calibration_ranking": calib["ranking"],
         "abstention": abst["risk_coverage"] | {"headline": abst["headline"]},
-        "hallucination": {"type1_oov": hall["type1_oov_rate"],
+        "hallucination": {"skipped": hall.get("skipped", False),
+                          "reason": hall.get("reason"),
+                          "type1_oov": hall["type1_oov_rate"],
                           "type2_violation": hall["type2_rate"],
                           "plausible_wrong": hall["plausible_wrong_rate"]},
     }
@@ -218,16 +292,25 @@ def main() -> None:
     print("\n" + "=" * 66)
     print(f"CHAPTER 4 -- {tag}")
     print("=" * 66)
-    print(f"  Hits@1/3/10        {metrics['hits_at_1']:.4f} / "
-          f"{metrics['hits_at_3']:.4f} / {metrics['hits_at_10']:.4f}")
+    if is_binary:
+        print(f"  accuracy           {metrics['accuracy']:.4f}   (binary, chance 0.500)")
+        print(f"  Hits@K             n/a -- undefined on a 2-answer task")
+    else:
+        print(f"  Hits@1/3/10        {metrics['hits_at_1']:.4f} / "
+              f"{metrics['hits_at_3']:.4f} / {metrics['hits_at_10']:.4f}")
     print(f"  best confidence    {best}")
     for r in calib["ranking"]:
         print(f"     {r['source']:22s} ECE {r['best_ece']:.4f} ({r['method']})")
     print(f"  {abst['headline']}")
-    print(f"  type1 OOV          {hall['type1_oov_rate']:.1%}  "
-          f"(GS-KGC WN18RR baseline 38.9-45.3%)")
-    print(f"  ★ type2 violation  {hall['type2_rate']:.1%}  "
-          f"(EGIT defined it; never measured before)")
+    if hall.get("skipped"):
+        print("  hallucination      n/a -- binary task emits verdicts, not entities.")
+        print("                     A tail-prediction dataset is required to measure")
+        print("                     type1 OOV and ★ type2 type-violation.")
+    else:
+        print(f"  type1 OOV          {hall['type1_oov_rate']:.1%}  "
+              f"(GS-KGC WN18RR baseline 38.9-45.3%)")
+        print(f"  ★ type2 violation  {hall['type2_rate']:.1%}  "
+              f"(EGIT defined it; never measured before)")
     print(f"\nsaved -> {res_dir}")
 
 
