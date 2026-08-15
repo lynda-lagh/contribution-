@@ -199,9 +199,20 @@ def main() -> None:
         recs = json.loads(built.read_text(encoding="utf-8"))
         for cond in ("untuned", "tuned", "tuned_anon"):
             blk = d.get(cond)
-            if not blk or "confidences" not in blk:
+            if not blk:
                 continue
-            conf = blk["confidences"]
+            # ★ Direction is required. See chapter1/seen_unseen.py for why:
+            #   the legacy `confidences` key can hold an UNDIRECTED margin
+            #   (|p_yes - p_no| / total), which thresholded at 0.5 gives a
+            #   chance-level prediction that still prints a plausible table.
+            if "p_yes" in blk and "p_no" in blk:
+                tot = [(a + b) or 1.0 for a, b in zip(blk["p_yes"], blk["p_no"])]
+                conf = [a / t for a, t in zip(blk["p_yes"], tot)]
+            else:
+                print(f"\n  ⚠️ [{cond}] logs only `confidences`, which may be an "
+                      f"undirected margin. Skipping — re-run the evaluation to "
+                      f"log p_yes / p_no.")
+                continue
             n = min(len(conf), len(recs))
             if not recs[0].get("seen_both") is not None:
                 print("\n  ⚠️ test_instructions.json has no seen/unseen stamps. "

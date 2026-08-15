@@ -92,7 +92,17 @@ def evaluate(model, tok, prompts, labels, tag: str) -> dict:
     res["refusal_rate"] = res["breakdown"]["rates"]["refusal_scored_as_no"]
     res["not_a_real_answer_rate"] = res["breakdown"]["not_a_real_answer_rate"]
 
-    # confidence from the logit margin -- feeds Chapter 4 (calibration, abstention)
+    # ★★ LOG THE DIRECTIONAL SCORES, not only the margin.
+    #
+    #    `confidences` is LogitParser.confidence = |p_yes - p_no| / (p_yes + p_no).
+    #    That is a CERTAINTY MAGNITUDE: it says how sure the model was, not which
+    #    way it answered. Downstream code (seen_unseen, calibration, ECE, Brier,
+    #    risk-coverage) needs DIRECTION, and thresholding a magnitude at 0.5
+    #    silently yields chance-level predictions that still look like a result.
+    #
+    #    p_yes and p_no are the raw quantities; everything else derives from them.
+    res["p_yes"] = [float(py) for py, _ in probs]
+    res["p_no"] = [float(pn) for _, pn in probs]
     res["confidences"] = [LogitParser.confidence(py, pn) for py, pn in probs]
     res["_raw"] = {"texts": texts[:50], "probs": probs[:50]}
     return res

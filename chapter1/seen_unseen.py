@@ -143,7 +143,19 @@ def main() -> None:
     print(f"[seen] training touched {len(seen):,} of {len(kg.ent2txt):,} entities "
           f"({len(seen)/len(kg.ent2txt):.1%}) at {n_tr:,} triples, seed {seed}")
 
-    built = Path(ns.data, ns.dataset, "built", "test_instructions.json")
+    # ★ build_condition writes to data/{dataset}-{condition}/built/, so the old
+    #   path data/{dataset}/built/ never existed and this script could not run.
+    #   Condition A is the right test set: real names, matching the `tuned` arm.
+    candidates = [Path(ns.data, f"{ns.dataset}-A", "built", "test_instructions.json"),
+                  Path(ns.data, ns.dataset, "built", "test_instructions.json")]
+    built = next((p for p in candidates if p.exists()), None)
+    if built is None:
+        raise SystemExit(
+            "no built test set found. Looked in:\n  "
+            + "\n  ".join(str(p) for p in candidates)
+            + f"\n\nBuild it first:  python -m chapter1.data --condition A "
+              f"--dataset {ns.dataset}")
+    print(f"[seen] test records <- {built}")
     recs = json.loads(built.read_text(encoding="utf-8"))
 
     # older builds have no head/tail columns -- recover them from kg.test order,
@@ -156,16 +168,49 @@ def main() -> None:
     results = []
     for cond in ("untuned", "tuned", "tuned_anon"):
         blk = d.get(cond)
-        if not blk or "confidences" not in blk:
+        if not blk:
             continue
-        conf = blk["confidences"]
-        n = min(len(conf), len(recs))
-        a = analyse(conf[:n], [r["label"] for r in recs[:n]], recs[:n], seen, cond)
+
+        # ★★ DIRECTION. `confidences` is LogitParser.confidence =
+        #    |p_yes - p_no| / (p_yes + p_no) -- a CERTAINTY MAGNITUDE. It says how
+        #    sure the model was, NOT which way it answered. Thresholding it at 0.5
+        #    as if it were P(Yes) silently produces a chance-level prediction and
+        #    a plausible-looking familiarity gap. Use p_yes/p_no when present.
+        if "p_yes" in blk and "p_no" in blk:
+            py = np.asarray(blk["p_yes"], float)
+            pn = np.asarray(blk["p_no"], float)
+            tot = np.where(py + pn > 0, py + pn, 1.0)
+            score = py / tot                       # directional, in [0,1]
+        else:
+            raise SystemExit(
+                f"\n✋ '{cond}' logs only `confidences`, which is an UNDIRECTED\n"
+                f"   certainty magnitude (|p_yes - p_no| / total). It cannot say\n"
+                f"   whether the model answered Yes or No, so no familiarity split\n"
+                f"   computed from it is meaningful.\n\n"
+                f"   Re-run the evaluation with a build that logs `p_yes` and\n"
+                f"   `p_no` per record, then re-run this script.\n\n"
+                f"   ⚠️ Any previously produced seen/unseen table is INVALID.")
+
+        n = min(len(score), len(recs))
+        y = np.array([r["label"] for r in recs[:n]], int)
+
+        # ---- GUARD: do these scores reproduce the accuracy stored beside them?
+        reported = (blk.get("logit") or {}).get("accuracy")
+        got = float((np.where(score[:n] >= 0.5, 1, -1) == y).mean())
+        if reported is not None and abs(got - reported) > 0.02:
+            raise SystemExit(
+                f"\n✋ '{cond}': the logged scores do NOT reproduce the logged "
+                f"accuracy.\n     reported {reported:.4f}   recomputed {got:.4f}\n"
+                f"   The two were not produced by the same run, or the records are\n"
+                f"   misaligned with the scores. Refusing to report a familiarity\n"
+                f"   split that would look plausible and mean nothing.")
+
+        a = analyse(score[:n], y, recs[:n], seen, cond)
         show(a)
         results.append(a)
 
     if not results:
-        raise SystemExit("no conditions had logged confidences")
+        raise SystemExit("no conditions had usable per-record scores")
 
     out = Path(ns.results, f"ch1_seen_unseen_{ns.dataset}.json")
     out.write_text(json.dumps(results, indent=2), encoding="utf-8")

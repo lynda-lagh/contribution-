@@ -43,14 +43,24 @@ def _score_set(model, tok, records: list[dict], limit: int) -> dict:
     labels = [r["label"] for r in recs]
     probs = yes_no_probabilities(model, tok, prompts)
 
-    conf = [p_yes for p_yes, _ in probs]
-    pred = [1 if c > 0.5 else -1 for c in conf]
+    # ★ DECIDE THE WAY LogitParser DOES: p_yes >= p_no, not p_yes > 0.5.
+    #   `yes_no_probabilities` returns raw token probabilities that need not sum
+    #   to 1 -- other tokens carry mass -- so a fixed 0.5 threshold is not the
+    #   same rule as the parser's and the two would disagree on some records.
+    conf = [p_yes for p_yes, _ in probs]                 # directional, P(Yes)
+    pred = [1 if p_yes >= p_no else -1 for p_yes, p_no in probs]
     correct = [p == l for p, l in zip(pred, labels)]
 
     return {
         "accuracy": float(np.mean(correct)),
         "n": len(recs),
         "positive_rate": float(np.mean([p == 1 for p in pred])),
+        # p_yes / p_no are the raw quantities; everything downstream derives from
+        # them. `confidences` is kept as P(Yes) for backwards compatibility --
+        # ⚠️ note that the OLDER chapters/ch1_diagnostic/analyse.py wrote an
+        # UNDIRECTED margin under the same key. Consumers must check for p_yes.
+        "p_yes": [float(a) for a, _ in probs],
+        "p_no": [float(b) for _, b in probs],
         "confidences": conf,
         "correct": correct,
         "records": recs,
@@ -109,17 +119,41 @@ def evaluate_both(cfg: dict, cond, dataset: str, adapter: str, limit: int = 2000
     root = cfg["data"]["root"]
     base = cfg["model"]["name"]
 
-    paths = {
-        "real": Path(root, dataset, "built", "test_instructions.json"),
-        "anon": Path(root, f"{dataset}-anon", "built", "test_instructions.json"),
-    }
-    missing = [k for k, p in paths.items() if not p.exists()]
+    # ★ chapter1.data writes to data/{dataset}-{CONDITION}/built/, so the old
+    #   data/{dataset}/built/ and data/{dataset}-anon/built/ never existed and
+    #   this function could not find a test set at all. Resolve by condition,
+    #   keeping the legacy names as a fallback.
+    #
+    #   The pair must be matched on EVERYTHING except names, or the gap measures
+    #   two changes at once:
+    #     untyped conditions (A, B, S) -> real = A, anon = B
+    #     typed conditions  (C, D, E, G) -> real = G, anon = C   (both carry tags)
+    typed = getattr(cond, "types", False)
+    want = {"real": [f"{dataset}-G" if typed else f"{dataset}-A", dataset],
+            "anon": [f"{dataset}-C" if typed else f"{dataset}-B",
+                     f"{dataset}-anon"]}
+
+    paths, missing = {}, {}
+    for key, names in want.items():
+        cands = [Path(root, n, "built", "test_instructions.json") for n in names]
+        hit = next((p for p in cands if p.exists()), None)
+        if hit is None:
+            missing[key] = cands
+        else:
+            paths[key] = hit
+
     if missing:
-        raise FileNotFoundError(
-            f"missing test set(s) {missing}.\n"
-            f"  real: python -m src.data.build_instructions --dataset {dataset} "
-            f"--n_triples {cfg['data']['train_triples']} --seed {cfg['seed']}\n"
-            f"  anon: same command with --anonymise")
+        msg = [f"missing test set(s): {', '.join(missing)}"]
+        for k, cands in missing.items():
+            msg.append(f"  {k}: looked in " + " · ".join(str(c.parent) for c in cands))
+        need = "G C" if typed else "A B"
+        msg.append(f"\n  build them:  python -m chapter1.data --condition {need} "
+                   f"--dataset {dataset}")
+        raise FileNotFoundError("\n".join(msg))
+
+    print(f"  [pair] real <- {paths['real'].parent.parent.name}   "
+          f"anon <- {paths['anon'].parent.parent.name}"
+          + ("   (typed pair)" if typed else ""))
 
     model, tok = _load(base, adapter)
     out = {}
