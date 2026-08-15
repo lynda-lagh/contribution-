@@ -270,7 +270,10 @@ def build_condition(cond: Condition, dataset: str, root: str, n_triples: int,
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--condition", default="A", choices=list(CONDITIONS))
+    # nargs="+" so `--condition D E` works. Previously one value only, which
+    # silently looked like a typo: argparse reported "unrecognized arguments: E".
+    ap.add_argument("--condition", default=["A"], nargs="+", choices=list(CONDITIONS),
+                    metavar="ID", help="one or more of: " + " ".join(CONDITIONS))
     ap.add_argument("--prompt", default="P0", choices=list(PROMPTS))
     ap.add_argument("--dataset", default="WN11")
     ap.add_argument("--root", default="data")
@@ -279,7 +282,9 @@ def main() -> None:
     ap.add_argument("--all", action="store_true", help="build every condition at P0")
     ns = ap.parse_args()
 
-    todo = list(CONDITIONS) if ns.all else [ns.condition]
+    todo = list(CONDITIONS) if ns.all else list(dict.fromkeys(ns.condition))
+    if len(todo) > 1:
+        print(f"[build] {len(todo)} conditions: {' '.join(todo)}")
     for cid in todo:
         m = build_condition(CONDITIONS[cid], ns.dataset, ns.root,
                             ns.n_triples, ns.seed, ns.prompt)
