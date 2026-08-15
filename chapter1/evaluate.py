@@ -57,7 +57,48 @@ def _score_set(model, tok, records: list[dict], limit: int) -> dict:
     }
 
 
-def evaluate_both(cfg: dict, cond, dataset: str, adapter: str, limit: int = 2000) -> dict:
+def smi_block(cfg: dict, adapter: str | None, records: list[dict],
+              n: int = 600) -> dict:
+    """
+    ★★ THE THIRD INSTRUMENT — and the wedge against the closest prior work.
+
+    FLAME's claim, measured with SMI alone:
+
+        "these representations reach fine-tuned-level SMI values, indicating that
+         fine-tuning primarily aligns representations rather than injecting
+         knowledge from the KG training set"
+
+    Our first run: SMI **0.0105 -> 0.0474**, a 3.5x rise. Read alone, that says
+    tuning DID install knowledge. Read beside anonymisation -- where 91% of the
+    accuracy turned out to be surface form -- it says something sharper:
+
+        ★ SMI CANNOT DISTINGUISH MEMORISATION FROM RELATIONAL KNOWLEDGE.
+          Representations became more label-informative, and the information
+          they encode is the entity NAME.
+
+    That is the precise limitation of the nearest prior work, and it is what our
+    anonymisation control resolves. Reporting SMI *and* the gap together is the
+    argument; reporting either alone is not.
+
+    600 samples: SMI needs samples, not all of them, and this is the slow step.
+    """
+    from src.data.prompts import ALPACA_NO_INPUT
+    from src.eval.smi import smi_across_layers
+
+    recs = records[:n]
+    prompts = [ALPACA_NO_INPUT.format(instruction=r["instruction"]) for r in recs]
+    y = [1 if r["label"] == 1 else 0 for r in recs]
+    model, tok = _load(cfg["model"]["name"], adapter)
+    try:
+        return smi_across_layers(model, tok, prompts, y)
+    finally:
+        import torch
+        del model
+        torch.cuda.empty_cache()
+
+
+def evaluate_both(cfg: dict, cond, dataset: str, adapter: str, limit: int = 2000,
+                  with_smi: bool = False) -> dict:
     """
     Score `adapter` on the real AND anonymised test sets.
 
@@ -104,6 +145,29 @@ def evaluate_both(cfg: dict, cond, dataset: str, adapter: str, limit: int = 2000
         out["seen_unseen"] = seen_unseen(rr["records"], rr["correct"])
         out["calibration"] = calibration_by_familiarity(
             [max(c, 1 - c) for c in rr["confidences"]], rr["correct"], rr["records"])
+
+    # ---- ★ SMI: the third instrument -------------------------------------
+    if with_smi:
+        from src.eval.smi import compare
+        print("  [smi] tuned ...")
+        s_tuned = smi_block(cfg, adapter, out["_real"]["records"])
+        print("  [smi] untuned baseline ...")
+        s_base = smi_block(cfg, None, out["_real"]["records"])
+        out["smi"] = {"tuned": s_tuned, "untuned": s_base,
+                      "comparison": compare(s_base, s_tuned)}
+        c = out["smi"]["comparison"]
+        print(f"  [smi] {c['smi_untuned']:.5f} -> {c['smi_tuned']:.5f} "
+              f"({c['relative_change']:+.2f}x)")
+        # ★ the joint reading — neither number means much alone
+        out["smi"]["joint_reading"] = (
+            f"SMI rose {c['relative_change']:+.1f}x while the anonymisation gap is "
+            f"{out['gap']:+.4f}. Representations became more label-informative AND "
+            f"the information is surface form -> SMI cannot separate memorisation "
+            f"from relational knowledge. This is FLAME's limitation, resolved."
+            if c["delta"] > 0 and out["gap"] > 0.15 else
+            f"SMI delta {c['delta']:+.5f}, gap {out['gap']:+.4f} — the two "
+            f"instruments do NOT point the same way. Investigate before writing.")
+        print(f"  [smi] {out['smi']['joint_reading']}")
 
     # trim the bulky arrays before saving
     for k in ("_real", "_anon"):

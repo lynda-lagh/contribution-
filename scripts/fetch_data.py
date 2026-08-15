@@ -33,11 +33,38 @@ ALL_DATASETS = ("WN11", "FB13", "WN18RR", "YAGO3-10")
 REQUIRED = ("entity2text.txt", "relation2text.txt", "train.tsv", "test.tsv")
 
 
-def _run(cmd: list[str]) -> str:
-    r = subprocess.run(cmd, capture_output=True, text=True)
+def _run(cmd: list[str], live: bool = False) -> str:
+    """
+    `live=True` streams git's own progress instead of swallowing it.
+
+    A shallow clone of kg-llm is a few hundred MB and takes minutes; with output
+    captured it looks like the cell has hung. git writes progress to stderr, so
+    we let it through and print a heartbeat besides.
+    """
+    if not live:
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        if r.returncode:
+            raise SystemExit(f"$ {' '.join(cmd)}\n{r.stdout}{r.stderr}")
+        return r.stdout
+
+    import threading
+    import time as _t
+    stop = threading.Event()
+
+    def heartbeat():
+        t0 = _t.time()
+        while not stop.wait(15):
+            print(f"    … still downloading ({int(_t.time()-t0)}s elapsed)", flush=True)
+
+    th = threading.Thread(target=heartbeat, daemon=True)
+    th.start()
+    try:
+        r = subprocess.run(cmd + ["--progress"], text=True)
+    finally:
+        stop.set()
     if r.returncode:
-        raise SystemExit(f"$ {' '.join(cmd)}\n{r.stdout}{r.stderr}")
-    return r.stdout
+        raise SystemExit(f"$ {' '.join(cmd)} failed with code {r.returncode}")
+    return ""
 
 
 def _count_lines(p: Path) -> int:
@@ -58,9 +85,10 @@ def fetch(datasets: tuple[str, ...], dest_root: str = "data",
 
     tmp = Path(tempfile.mkdtemp(prefix="kgllm_"))
     try:
-        print(f"[fetch] cloning {KGLLM_REPO} (shallow) ...")
+        print(f"[fetch] cloning {KGLLM_REPO} (shallow, ~a few hundred MB)")
+        print("        git's own progress follows; a heartbeat prints every 15s\n")
         # --depth 1: we want the files, not 12 commits of history
-        _run(["git", "clone", "--depth", "1", KGLLM_REPO, str(tmp / "kg-llm")])
+        _run(["git", "clone", "--depth", "1", KGLLM_REPO, str(tmp / "kg-llm")], live=True)
 
         src_root = tmp / "kg-llm" / "data"
         if not src_root.is_dir():
@@ -69,7 +97,7 @@ def fetch(datasets: tuple[str, ...], dest_root: str = "data",
         available = sorted(p.name for p in src_root.iterdir() if p.is_dir())
         print(f"[fetch] datasets available upstream: {available}")
 
-        for name in todo:
+        for k, name in enumerate(todo, 1):
             src = src_root / name
             if not src.is_dir():
                 print(f"  [SKIP] {name}: not found upstream "
@@ -77,13 +105,17 @@ def fetch(datasets: tuple[str, ...], dest_root: str = "data",
                 continue
             dst = dest_root_p / name
             dst.mkdir(parents=True, exist_ok=True)
+            copied = 0
             for fname in REQUIRED:
                 s = src / fname
                 if not s.exists():
                     print(f"  [WARN] {name}/{fname} missing upstream")
                     continue
+                mb = s.stat().st_size / 1e6
+                print(f"    [{k}/{len(todo)}] {name}/{fname:20s} {mb:7.1f} MB", flush=True)
                 shutil.copy2(s, dst / fname)
-            print(f"  [ok]   {name} -> {dst}")
+                copied += 1
+            print(f"  [ok]   {name} -> {dst}  ({copied}/{len(REQUIRED)} files)")
     finally:
         if keep_clone:
             print(f"[fetch] clone kept at {tmp}")

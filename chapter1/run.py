@@ -56,6 +56,11 @@ def main() -> None:
     ap.add_argument("--train", action="store_true")
     ap.add_argument("--evaluate", action="store_true", help="both test sets -> gap")
     ap.add_argument("--rank", action="store_true", help="50-way link prediction")
+    ap.add_argument("--smi", action="store_true",
+                    help="★ also compute sliced mutual information (FLAME's "
+                         "instrument). Slow — 600 samples × 2 model loads — but it "
+                         "is what shows SMI cannot separate memorisation from "
+                         "knowledge. Run it on A and B at minimum.")
     ap.add_argument("--limit", type=int, default=2000)
     ns = ap.parse_args()
 
@@ -92,10 +97,15 @@ def main() -> None:
     # ------------------------------------------------------------- evaluate
     if ns.evaluate:
         from .evaluate import evaluate_both
-        r = evaluate_both(cfg, cond, ns.dataset, str(adapter), ns.limit)
+        r = evaluate_both(cfg, cond, ns.dataset, str(adapter), ns.limit,
+                          with_smi=ns.smi)
         save_result(cfg, f"{tag}-eval", r)
         print(f"\n  real {r['acc_real']:.4f} · anon {r['acc_anon']:.4f} · "
               f"GAP {r['gap']:+.4f}")
+        if "smi" in r:
+            c = r["smi"]["comparison"]
+            print(f"  SMI  {c['smi_untuned']:.5f} -> {c['smi_tuned']:.5f}"
+                  f"  ({c['relative_change']:+.2f}x)")
 
     # ----------------------------------------------------------------- rank
     if ns.rank:

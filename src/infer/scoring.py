@@ -64,8 +64,15 @@ def yes_no_probabilities(
     tokenizer.padding_side = "right"
 
     out: list[tuple[float, float]] = []
+    # ★ progress + ETA: this is the slow inner loop of every evaluation, and a
+    # silent cell is indistinguishable from a hung one.
+    from ..utils.progress import track
+    n_batches = (len(prompts) + batch_size - 1) // batch_size
+    bar = track(range(0, len(prompts), batch_size), "scoring P(Yes) vs P(No)",
+                total=n_batches, unit="batch") if len(prompts) > batch_size * 4 \
+        else range(0, len(prompts), batch_size)
     try:
-      for i in range(0, len(prompts), batch_size):
+      for i in bar:
         batch = prompts[i : i + batch_size]
         enc = tokenizer(batch, return_tensors="pt", padding=True,
                         truncation=True, max_length=512).to(device)

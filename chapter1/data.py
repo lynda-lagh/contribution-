@@ -13,12 +13,14 @@ from __future__ import annotations
 import argparse
 import json
 import random
+from dataclasses import replace
 from pathlib import Path
 
-from src.data.loaders import KG, Triple, anonymise, load_kg
+from src.data.loaders import KG, Triple, anonymise, load_kg, shuffle_surface_forms
 from src.data.negatives import build_relation_type_index, make_negatives
 from src.data.prompts import ALPACA_NO_INPUT, NO, YES
 from src.routing.types import entity_types
+from src.utils.progress import phase, track
 
 from .conditions import CONDITIONS, PROMPTS, STRUCTURAL_INSTRUCTION, Condition, PromptVariant
 
@@ -67,6 +69,65 @@ def render(t: Triple, kg: KG, pv: PromptVariant,
 # =============================================================================
 #  DEMONSTRATION POOL
 # =============================================================================
+def build_types(kg: KG, cond, dataset: str, max_other: float = 0.5) -> dict[str, str]:
+    """
+    ★★ TYPES THAT ACTUALLY CARRY INFORMATION — with a hard guard.
+
+    THE BUG THIS EXISTS TO PREVENT
+    ------------------------------
+    `entity_types(kg, method="auto")` picks the POS method, which reads a
+    part-of-speech marker out of the identifier (`stool_NN_2`, WN18RR style).
+
+        WN11 identifiers look like `__east_indian_1` -- NO POS marker.
+        Result: 1 distinct type, OTHER = 100.0% of 38,588 entities.
+
+    Every optional type block then renders nothing, so condition C produced a
+    prompt BYTE-IDENTICAL to condition B:
+
+        [B] Is this true: entity712 has instance entity21807?
+        [C] Is this true: entity712 has instance entity21807?     <-- same
+
+    C, D, E and G would all have silently run as B, and the ladder would have
+    "shown" that types do not help. Anonymisation makes it worse (`entity712`
+    carries nothing at all), but the failure is present on the RAW graph too.
+
+    THE FIX
+    -------
+    Fall back to INDUCED types: an entity's type is the set of relation
+    positions it occupies (`_has_instance::head`, `_type_of::tail`, ...).
+    Derived from graph structure, which anonymisation PRESERVES -- relations are
+    never hidden, only entities. So induced types are identical before and after
+    anonymisation, which is exactly what conditions B->C need.
+
+    ⚠️ Say so in the paper. An induced type is "participates in these relations",
+    which is weaker than a semantic type like Person/Location. On WN11 it is the
+    only type signal available. **FB13 has real semantic types** -- that is why
+    the type conditions belong there.
+    """
+    for method in ("auto", "induced"):
+        t = entity_types(kg, method=method)
+        n = len(t) or 1
+        other = sum(1 for v in t.values() if v in (None, "OTHER")) / n
+        distinct = len({v for v in t.values() if v not in (None, "OTHER")})
+        print(f"[types] {dataset} {cond.id}: method={method} -> "
+              f"{distinct} distinct, OTHER={other:.1%}")
+        if other <= max_other and distinct >= 2:
+            return t
+
+    raise SystemExit(
+        f"\n★ TYPE EXTRACTION FAILED for {dataset} (condition {cond.id}).\n"
+        f"  No method produced usable types: >{max_other:.0%} of entities are OTHER.\n"
+        f"  Condition {cond.id} would render prompts IDENTICAL to the no-types\n"
+        f"  condition, and the experiment would silently measure nothing.\n\n"
+        f"  Options:\n"
+        f"    1. Use FB13 — its relations (profession, nationality, place_of_birth)\n"
+        f"       carry real domain/range, which is where `Person -bornIn-> Location`\n"
+        f"       actually lives. WN11's ids (`__east_indian_1`) have no type marker.\n"
+        f"    2. Supply types from an external source (WordNet lexnames, YAGO's\n"
+        f"       type hierarchy) and pass them in.\n"
+        f"  Refusing to build a condition that cannot differ from its baseline.")
+
+
 def demo_pool(kg: KG, k: int = 50) -> dict[str, list[Triple]]:
     """Per relation, a few real training triples to show as examples (P4)."""
     pool: dict[str, list[Triple]] = {}
@@ -89,9 +150,25 @@ def build_condition(cond: Condition, dataset: str, root: str, n_triples: int,
     kg = load_kg(dataset, root)
     if cond.anonymise:
         kg = anonymise(kg)          # ⚠️ anonymises train AND test consistently
+    elif getattr(cond, "shuffle", False):
+        # ★ real names kept, permuted across entities. Same vocabulary, same
+        # lengths, same readability -- only the name↔entity binding is gone.
+        kg = shuffle_surface_forms(kg, seed=seed)
 
+    # ★ CONDITION-level and PROMPT-level `types` are two different switches.
+    #
+    #   cond.types  -- this condition TRAINS with type tags   (C, D, E, G)
+    #   pv.types    -- this prompt VARIANT shows type tags    (P1, P3)
+    #
+    # `render` only consults `pv.types`, so condition C at prompt P0 computed the
+    # types and then silently dropped them -- C came out byte-identical to B.
+    # Fold the condition's switch into the effective variant so one flag governs
+    # rendering and the two can never disagree again.
     pv = PROMPTS[prompt_id]
-    types = entity_types(kg) if (cond.types or pv.types) else None
+    if cond.types and not pv.types:
+        pv = replace(pv, types=True)
+
+    types = build_types(kg, cond, dataset) if pv.types else None
     demos = demo_pool(kg) if pv.demonstrations else None
 
     # ---- training instances -------------------------------------------------
@@ -100,7 +177,10 @@ def build_condition(cond: Condition, dataset: str, root: str, n_triples: int,
 
     records: list[dict] = []
     rng = random.Random(seed)
-    for p in pos:
+    n_out = len(pos) * (1 + cond.n_negatives)
+    print(f"  building {len(pos):,} positives × (1 + {cond.n_negatives} negatives) "
+          f"= {n_out:,} instances")
+    for p in track(pos, f"[{cond.id}] train instances", total=len(pos), unit="triple"):
         d = demos.get(p.relation) if demos else None
         records.append({"instruction": render(p, kg, pv, types, d),
                         "input": "", "output": YES})
@@ -116,7 +196,8 @@ def build_condition(cond: Condition, dataset: str, root: str, n_triples: int,
                                       demos.get(t.relation) if demos else None),
                 "input": "", "output": YES if t.label == 1 else NO},
              "label": t.label, "head": t.head, "relation": t.relation, "tail": t.tail}
-            for t in kg.test]
+            for t in track(kg.test, f"[{cond.id}] test instances",
+                           total=len(kg.test), unit="triple")]
 
     # ---- ★ seen/unseen split, computed at build time ------------------------
     # We train on 10k of WN11's 112,581 triples, so roughly half the test
@@ -127,6 +208,26 @@ def build_condition(cond: Condition, dataset: str, root: str, n_triples: int,
         r["seen_head"] = r["head"] in seen
         r["seen_tail"] = r["tail"] in seen
         r["seen_both"] = r["seen_head"] and r["seen_tail"]
+
+    # ★★ DIFFERENTIATION GUARD.
+    # A condition that renders the same prompts as its baseline measures nothing.
+    # This is the failure that produced identical B and C prompts, and it is
+    # invisible downstream: training succeeds, accuracy looks plausible, and the
+    # ladder reports "types do not help" when types were never present.
+    if cond.types:
+        from .conditions import Condition
+        bare = Condition(cond.id + "_bare", cond.anonymise, False,
+                         cond.negatives, cond.n_negatives, "", "")
+        same = sum(1 for r, p in zip(records[:200], pos[:200])
+                   if r["instruction"] == render(p, kg, PROMPTS["P0"], None, None))
+        typed_marker = sum(1 for r in records[:200] if "[" in r["instruction"])
+        if typed_marker == 0:
+            raise SystemExit(
+                f"\n★ CONDITION {cond.id} HAS types=True BUT NO TYPE TAG APPEARS "
+                f"IN ANY PROMPT.\n  It would be identical to the no-types condition. "
+                f"See build_types() for why.\n"
+                f"  Example: {records[0]['instruction'][:100]}")
+        print(f"[guard] {cond.id}: {typed_marker}/200 prompts carry a type tag ✓")
 
     tag = f"{dataset}-{cond.id}" + (f"-{prompt_id}" if prompt_id != "P0" else "")
     out = Path(out_root or root, tag, "built")

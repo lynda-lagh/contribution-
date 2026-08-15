@@ -106,3 +106,61 @@ def anonymise(kg: KG) -> KG:
         train=list(kg.train),
         test=list(kg.test),
     )
+
+
+def shuffle_surface_forms(kg: KG, seed: int = 42) -> KG:
+    """
+    ★★ THE CONTROL THAT ANSWERS THE ONE FATAL OBJECTION.
+
+    A reviewer will say of `anonymise`:
+
+        "Replacing names with entity4471 destroys ALL information, so of course
+         accuracy collapses. That tells us nothing about memorisation."
+
+    They would have a point. This control removes it.
+
+    We keep every real name in the graph and only PERMUTE which entity holds
+    which. `dog` might become `Reykjavik`. So:
+
+        vocabulary            identical
+        name lengths          identical
+        token distribution    identical
+        readability           identical
+        name <-> entity bond  DESTROYED
+
+    If accuracy also collapses here, the collapse cannot be "opaque ids are
+    unreadable" -- the ids are perfectly readable English. It can only be that
+    the model was relying on WHICH name went WHERE, which is the definition of
+    surface-form memorisation.
+
+    Three outcomes, all interpretable:
+
+      shuffled ~= anonymised   -> confirmed: the binding was the whole signal
+      shuffled ~= real         -> the model never used names; anonymisation
+                                  destroyed something else (investigate)
+      in between               -> quantifies how much is binding vs readability
+
+    ⚠️ The permutation is DERANGED (no entity keeps its own name) and seeded, so
+    it is reproducible and no entity is accidentally left un-shuffled.
+    """
+    import random
+    ids = sorted(kg.ent2txt)
+    names = [kg.ent2txt[e] for e in ids]
+    rng = random.Random(seed)
+
+    order = list(range(len(ids)))
+    for _ in range(200):                       # derangement by rejection
+        rng.shuffle(order)
+        if all(i != j for i, j in enumerate(order)):
+            break
+    else:                                       # tiny graph: rotate instead
+        order = order[1:] + order[:1]
+
+    shuffled = {ids[i]: names[order[i]] for i in range(len(ids))}
+    return KG(
+        name=kg.name + "-shuf",
+        ent2txt=shuffled,
+        rel2txt=dict(kg.rel2txt),
+        train=list(kg.train),
+        test=list(kg.test),
+    )

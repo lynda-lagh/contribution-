@@ -89,8 +89,12 @@ def rank_queries(model, tokenizer, kg: KG, queries: list[Triple],
     for t in kg.train:
         known.setdefault((t.head, t.relation), set()).add(t.tail)
 
+    from src.utils.progress import eta_note, track
+    eta_note(len(queries) * n_way, 0.012, "forward passes")
+
     out = []
-    for qi, q in enumerate(queries):
+    for qi, q in enumerate(track(queries, f"ranking {n_way}-way",
+                                 total=len(queries), unit="query")):
         cands = sample_candidates(
             q.tail, ents, n_way, rng,
             filter_out=known.get((q.head, q.relation), set()) - {q.tail})
@@ -117,8 +121,6 @@ def rank_queries(model, tokenizer, kg: KG, queries: list[Triple],
             "margin": float(scores[order[0]] - scores[order[1]]) if len(order) > 1 else 0.0,
             "top1": ranked[0],
         })
-        if (qi + 1) % 100 == 0:
-            print(f"    {qi+1}/{len(queries)} queries")
     return out
 
 

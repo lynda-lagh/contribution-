@@ -29,6 +29,7 @@ class Condition:
     n_negatives: int         # per positive triple
     isolates: str            # the one thing this row changes
     reference: str
+    shuffle: bool = False    # ★ keep real names, PERMUTE which entity holds which
 
     @property
     def name(self) -> str:
@@ -75,6 +76,17 @@ CONDITIONS: dict[str, Condition] = {
         isolates="★★ do types help when names ARE available? The field's actual claim",
         reference="CATS +7.2% MRR · Knit 0.2240→0.2490 · RealKGC +3.83% — all with "
                   "real names, none isolating the type contribution"),
+
+    # ★★ THE CONTROL THAT DEFENDS THE WHOLE CHAPTER
+    "S": Condition(
+        "S", anonymise=False, types=False, negatives="random", n_negatives=1,
+        shuffle=True,
+        isolates="★★ real names, PERMUTED — kills the objection that anonymisation "
+                 "destroys all signal by construction",
+        reference="[OURS]. The obvious attack on B is 'entity4471 is unreadable, so "
+                  "of course it fails.' Here every name is real English and only the "
+                  "name↔entity BINDING is destroyed. If S ≈ B, the binding was the "
+                  "signal, and the objection is answered with a measurement."),
 }
 
 # F (12 hard) deliberately dropped: matches CATS, but CATS is 7B and inductive.
