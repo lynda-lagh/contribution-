@@ -156,23 +156,44 @@ Report '% of the gap recovered', not raw accuracy:
     recovered = (acc_condition - acc_B) / (acc_A - acc_B)
 """
 
-# ★★ MEASURED 15 Aug 2026 — YAGO3-10, `python -m chapter1.check_type_leak`
+# ★★ THE TYPE-TAG LEAK — found, measured, and FIXED. 15 Aug 2026.
+#     `python -m chapter1.check_type_leak --dataset YAGO3-10`
 #
-#    tag-only rule accuracy            62.4%   (chance 50%)
-#    P(tail tag == '{r}::tail')  pos    52.5%   neg 27.7%   separation 24.8 pts
-#    worst relations: hasWonPrize 75.2 · hasMusicalRole 75.0 · actedIn 69.9
+# THE PROBLEM. An induced type is an entity's DOMINANT relation position, so a
+# positive's tail is more likely to carry the tag `{r}::tail` than a corrupted
+# tail is. With RANDOM test negatives the corrupted tail's tag is essentially a
+# random type, and the one-line rule "tail tag == {r}::tail -> Yes" scored:
 #
-# The type tag carries 12.4 points of label information BEFORE any learning,
-# because a positive's tail is a genuine tail of r while a randomly corrupted
-# tail is not. Conditions WITH tags (C, D, E, G) therefore start from a 62.4%
-# floor; conditions WITHOUT tags (A, B, S) start from 50%.
+#     test negatives = random            62.4%   pos 52.5% / neg 27.7%   sep 24.8 pts
 #
-# ✋ THIS INVALIDATES THE ORIGINAL "C vs B" COMPARISON. C would beat B by ~12
-#    points with no learning at all. The comparison must be against the FLOOR,
-#    not against B.
+# 12.4 points of free accuracy, before any learning. That would have made the
+# pre-registered rule "C >> B => the model can use types" fire on an artefact.
+#
+# THE FIX. Regenerate the YAGO3-10 test negatives type-consistently, so a
+# corrupted tail is drawn from the SAME relation's observed range and its tag is
+# distributed like the gold tail's:
+#
+#     scripts/make_test_negatives.py --strategy type_consistent --regenerate
+#     test negatives = type_consistent   51.3%   pos 52.5% / neg 49.9%   sep  2.6 pts
+#
+# ★ ALSO VERIFIED HERE: C/D/E (anonymised) and G (real names) return byte-identical
+#   leak figures, which empirically confirms the design claim in build_types() —
+#   induced types are invariant under anonymisation.
+#
+# ⚠️ THE COST, and it must be reported. Type-consistent corruptions are plausible
+#   facts, so more of them collide with the graph: 690 candidates were rejected
+#   for already existing in train u valid u test. The ones that did NOT collide
+#   are likelier to be true-but-unrecorded, so the closed-world exposure of this
+#   test set is higher than the random-negative version's. Numbers from the two
+#   versions are NOT comparable — say which one produced each result.
+#
+# ⚠️ Per-relation residue remains above chance: wasBornIn 60.5 · isLocatedIn 59.7
+#   · graduatedFrom 59.5. Report per-relation accuracy, not only the aggregate.
 TYPE_TAG_FLOOR = {
-    "YAGO3-10": 0.624,      # measured; re-run check_type_leak if the test set changes
-    "WN11": None,           # not yet measured
+    # measured on the TYPE-CONSISTENT test set. Re-run check_type_leak after ANY
+    # change to test.tsv — this number is only valid for the set it was measured on.
+    "YAGO3-10": 0.513,
+    "WN11": None,           # not yet measured; falls back to 0.5
 }
 
 

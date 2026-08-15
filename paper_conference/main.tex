@@ -808,6 +808,62 @@ exposure of Section~\ref{sec:terms}. \textbf{Our YAGO3-10 numbers are therefore
 not comparable to published YAGO3-10 results.} All comparisons are internal and
 every caption states this.
 
+\subsection{An artefact in the type prompt, and how we removed it}
+\label{sec:leak}
+
+Adding a type tag to a prompt can leak the label, and we found that it did. An
+induced type is an entity's dominant relation position, so the tail of a
+\emph{positive} triple is more likely to carry the tag $r$\texttt{::tail} than a
+corrupted tail is. When test negatives are produced by uniform corruption, the
+corrupted tail's tag is effectively a random type, and the one-line rule
+``answer Yes if the tail tag names the query relation'' becomes a usable
+classifier.
+
+We measured it directly. On the uniformly-corrupted test set that rule scores
+\textbf{62.4\,\%}, against a chance level of 50\,\%, with the tag matching for
+52.5\,\% of positives and only 27.7\,\% of negatives. \textbf{Every typed
+condition would therefore have begun 12.4 points above every untyped one before
+any learning took place}, and a comparison between them would have recorded an
+artefact of the prompt as evidence that the model uses types.
+
+We removed it rather than corrected for it, by regenerating the test negatives
+type-consistently: a corrupted tail is drawn from the same relation's observed
+range, so its tag is distributed like the gold tail's. The same rule then scores
+\textbf{51.3\,\%}, with the match rate at 52.5\,\% for positives against
+49.9\,\% for negatives -- a separation of 2.6 points rather than 24.8.
+Table~\ref{tab:leak} reports both. A residue remains for individual relations
+(\texttt{wasBornIn} 60.5\,\%, \texttt{isLocatedIn} 59.7\,\%), so we report
+per-relation accuracy alongside the aggregate throughout.
+
+\begin{table}[htbp]
+\caption{The type-tag artefact. Accuracy of the rule ``tail tag names the query
+relation $\Rightarrow$ Yes'', which uses no learning at all.}
+\begin{center}
+\footnotesize
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{Test negatives} & \textbf{Rule acc.} & \textbf{match\,$|$\,pos} &
+\textbf{match\,$|$\,neg} \\
+\midrule
+uniform corruption & 62.4\,\% & 52.5\,\% & 27.7\,\% \\
+type-consistent    & \textbf{51.3\,\%} & 52.5\,\% & 49.9\,\% \\
+\bottomrule
+\end{tabular}
+\label{tab:leak}
+\end{center}
+\end{table}
+
+Two consequences are worth stating. First, the fix is not free: type-consistent
+corruptions are plausible facts, so more of them collide with the graph and are
+rejected -- 690 candidates in our case -- and those that survive are more likely
+to be true but unrecorded, which raises the closed-world exposure of this test
+set relative to the uniform one. Results from the two versions are not
+comparable and we report which produced each number. Second, and more
+generally, \textbf{systems that add type information to prompts while evaluating
+against uniformly corrupted negatives are exposed to this artefact}, and none of
+\cite{cats}, \cite{knit} or \cite{realkgc} reports a check for it. The
+diagnostic costs no training and is included in our release.
+
 \textbf{Model and adaptation.} Qwen2.5-1.5B-Instruct with
 LoRA~\cite{lora} at $r=8$, $\alpha=16$, dropout 0.05, on the query and value
 projections, learning rate $3\times 10^{-4}$ -- the constants of~\cite{kgllm}.
