@@ -66,7 +66,7 @@ def buckets(records, seen):
 def analyse(conf, labels, records, seen, name):
     p = np.clip(np.asarray(conf, float), 0, 1)
     y = np.asarray(labels, int)
-    pred = np.where(p > 0.5, 1, -1)
+    pred = np.where(p >= 0.5, 1, -1)
     correct = pred == y
     conf_mag = np.maximum(p, 1 - p)          # certainty, direction-independent
 
@@ -74,16 +74,45 @@ def analyse(conf, labels, records, seen, name):
     out = {"condition": name, "n": int(len(y)), "buckets": {}}
     for k, m in B.items():
         n = int(m.sum())
+        # ★★ RAW ACCURACY IS NOT COMPARABLE ACROSS THESE BUCKETS.
+        #
+        #    Measured on WN11 (2,000 items): the positive rate is
+        #        both_seen 60.7%   one_seen 50.0%   neither 40.7%
+        #    The buckets are NOT balanced, even though the test set as a whole
+        #    is exactly 50/50. Frequent entities are both likelier to be sampled
+        #    into training AND likelier to appear in a true triple.
+        #
+        #    Consequence: a model that always answers "Yes" scores 0.607 / 0.500
+        #    / 0.407 and shows a +0.20 "familiarity gap" having learned nothing.
+        #    A "No"-biased model shows the same gap with the sign flipped. Both
+        #    are artefacts of the base rate.
+        #
+        #    BALANCED ACCURACY (mean of per-class recall) removes it: its chance
+        #    level is 0.5 in every bucket regardless of skew. Read that column.
+        if n:
+            yb, cb = y[m], correct[m]
+            recalls = [float(cb[yb == c].mean()) for c in (1, -1) if (yb == c).any()]
+            bal = float(np.mean(recalls)) if recalls else None
+            pos_rate = float((yb == 1).mean())
+        else:
+            bal, pos_rate = None, None
         out["buckets"][k] = {
             "n": n,
             "share": n / max(1, len(y)),
             "accuracy": float(correct[m].mean()) if n else None,
+            "balanced_accuracy": bal,
+            "positive_rate": pos_rate,
+            "majority_baseline": (max(pos_rate, 1 - pos_rate)
+                                  if pos_rate is not None else None),
             "mean_confidence": float(conf_mag[m].mean()) if n else None,
         }
 
     b, ne = out["buckets"]["both_seen"], out["buckets"]["neither"]
-    if b["accuracy"] is not None and ne["accuracy"] is not None:
-        out["familiarity_gap"] = b["accuracy"] - ne["accuracy"]
+    if b["balanced_accuracy"] is not None and ne["balanced_accuracy"] is not None:
+        # ★ the gap that matters is the BALANCED one -- see the note above
+        out["familiarity_gap"] = b["balanced_accuracy"] - ne["balanced_accuracy"]
+        out["familiarity_gap_raw"] = b["accuracy"] - ne["accuracy"]
+        out["base_rate_artefact"] = b["majority_baseline"] - ne["majority_baseline"]
         out["confidence_gap"] = b["mean_confidence"] - ne["mean_confidence"]
         # ★ Is the model HONEST about not knowing? Confidence should fall as much
         # as accuracy does. If it does not, it is overconfident exactly where it
@@ -104,16 +133,22 @@ def analyse(conf, labels, records, seen, name):
 
 
 def show(a):
-    print(f"\n{'─' * 74}\n  {a['condition']}   (n={a['n']:,})\n{'─' * 74}")
-    print(f"  {'bucket':12s} {'n':>7s} {'share':>8s} {'accuracy':>10s} {'confidence':>11s}")
+    print(f"\n{'─' * 78}\n  {a['condition']}   (n={a['n']:,})\n{'─' * 78}")
+    print(f"  {'bucket':12s} {'n':>6s} {'%pos':>7s} {'raw acc':>9s} "
+          f"{'BAL ACC':>9s} {'conf':>8s}")
     for k in ("both_seen", "one_seen", "neither"):
         b = a["buckets"][k]
-        acc = f"{b['accuracy']:.4f}" if b["accuracy"] is not None else "     —"
-        cf = f"{b['mean_confidence']:.4f}" if b["mean_confidence"] is not None else "     —"
-        print(f"  {k:12s} {b['n']:>7,d} {b['share']:>8.1%} {acc:>10s} {cf:>11s}")
+        f = lambda v, w=9: (f"{v:.4f}".rjust(w) if v is not None else "—".rjust(w))
+        print(f"  {k:12s} {b['n']:>6,d} {b['positive_rate']:>6.1%} "
+              f"{f(b['accuracy'])} {f(b['balanced_accuracy'])} "
+              f"{f(b['mean_confidence'], 8)}")
     if "familiarity_gap" in a:
-        print(f"\n  familiarity gap (accuracy)   {a['familiarity_gap']:+.4f}")
-        print(f"  familiarity gap (confidence) {a['confidence_gap']:+.4f}")
+        print(f"\n  ★ familiarity gap (BALANCED acc) {a['familiarity_gap']:+.4f}   "
+              f"<- the one to report")
+        print(f"    familiarity gap (raw acc)      {a['familiarity_gap_raw']:+.4f}")
+        print(f"    of which base-rate artefact    {a['base_rate_artefact']:+.4f}   "
+              f"(bucket skew alone, no model)")
+        print(f"    familiarity gap (confidence)   {a['confidence_gap']:+.4f}")
         if a.get("overconfident_on_unseen"):
             print("  ⚠️ OVERCONFIDENT ON UNSEEN — confidence falls less than accuracy.")
             print("     The model does not know that it does not know. ★ This is the")
