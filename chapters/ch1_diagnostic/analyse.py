@@ -145,9 +145,24 @@ def main() -> None:
 
     out: dict = {"dataset": ns.dataset, "n_test": len(prompts), "model": base}
 
+    # ★ SAVE AFTER EVERY ARM. This script does ~5 minutes of GPU work per arm and
+    #   previously wrote nothing until the very end, so a crash in a later arm
+    #   discarded everything already computed. That happened once, on a missing
+    #   path for the anonymised test set. Partial results are useful; losing them
+    #   is not.
+    _res_dir = Path(cfg["output"].get("results_dir", "results"))
+    _res_dir.mkdir(parents=True, exist_ok=True)
+    _dest = _res_dir / f"ch1_{ns.dataset}.json"
+
+    def _checkpoint(stage: str) -> None:
+        out["_partial"] = stage
+        _dest.write_text(json.dumps(out, indent=2), encoding="utf-8")
+        print(f"[ch1] saved after '{stage}' -> {_dest}")
+
     print("[ch1] UNTUNED")
     m, t = load_model(base, None)
     out["untuned"] = evaluate(m, t, prompts, labels, "untuned")
+    _checkpoint("untuned")
     del m; torch.cuda.empty_cache()
 
     # ★ TWO NAMING SCHEMES EXIST. This script was written against
@@ -172,6 +187,7 @@ def main() -> None:
         m, t = load_model(base, str(tuned_dir))
         out["tuned"] = evaluate(m, t, prompts, labels, "tuned")
         del m; torch.cuda.empty_cache()
+        _checkpoint("tuned")
     else:
         print(f"[ch1] skip tuned -- {tuned_dir} not found")
 
@@ -189,13 +205,18 @@ def main() -> None:
         # accuracy survives when surface forms carry no pretraining signal?
         # Both training AND evaluation must therefore be anonymised, and the
         # only thing differing from the `tuned` arm is the surface forms.
-        anon_path = Path(root, f"{ns.dataset}-anon", "built", "test_instructions.json")
-        if not anon_path.exists():
+        # ★ condition B IS the anonymised build. chapter1.data writes it to
+        #   data/{dataset}-B/built/; the legacy name was data/{dataset}-anon/.
+        _acands = [Path(root, f"{ns.dataset}-B", "built", "test_instructions.json"),
+                   Path(root, f"{ns.dataset}-anon", "built", "test_instructions.json")]
+        anon_path = next((p for p in _acands if p.exists()), None)
+        if anon_path is None:
             raise FileNotFoundError(
-                f"{anon_path} not found. Build it first:\n"
-                f"  python -m src.data.build_instructions --dataset {ns.dataset} "
-                f"--n_triples {cfg['data']['train_triples']} --seed {cfg['seed']} --anonymise"
-            )
+                "anonymised test set not found. Looked in:\n  "
+                + "\n  ".join(str(p.parent) for p in _acands)
+                + f"\n\n  build it:  python -m chapter1.data --condition B "
+                  f"--dataset {ns.dataset}")
+        print(f"[ch1] anon test set <- {anon_path}")
         test_a = json.loads(anon_path.read_text(encoding="utf-8"))[: ns.limit]
         prompts_a = [ALPACA_NO_INPUT.format(instruction=r["instruction"]) for r in test_a]
         labels_a = [r["label"] for r in test_a]
@@ -215,6 +236,7 @@ def main() -> None:
         m, t = load_model(base, str(anon_dir))
         out["tuned_anon"] = evaluate(m, t, prompts_a, labels_a, "anon")
         del m; torch.cuda.empty_cache()
+        _checkpoint("tuned_anon")
 
     for cond in ("untuned", "tuned"):
         if cond in out:
