@@ -52,6 +52,37 @@ def data_dir_for(run_id: str, root: str) -> Path:
     raise ValueError(f"cannot infer dataset for {run_id}")
 
 
+def rebuild_command(run_id: str, cfg: dict) -> str:
+    """
+    The command that regenerates this run's built data.
+
+    ⚠️ Only Chapter 1 can be rebuilt with plain `build_instructions`. Chapter 2's
+    data depends on the |E| induced subgraph and Chapter 3's on the routing level,
+    both of which are produced inside their own runners -- and those RETRAIN.
+    Say so rather than printing a command that will not work.
+    """
+    n, seed = cfg["data"]["train_triples"], cfg["seed"]
+    if run_id.startswith("ch1-"):
+        anon = " --anonymise" if "anon" in run_id else ""
+        return (f"python -m src.data.build_instructions --dataset WN11 "
+                f"--n_triples {n} --seed {seed}{anon}")
+    if run_id.startswith("ch2-"):
+        ent = next((x[1:] for x in run_id.split("-")
+                    if x.startswith("E") and x[1:].isdigit()), "?")
+        return (f"⚠️ produced inside ch2_adaptation.run (needs the |E|={ent} induced "
+                f"subgraph).\n            Regenerating it currently RETRAINS. "
+                f"Fetch YAGO3-10 first:\n            "
+                f"python -m scripts.fetch_data --datasets YAGO3-10")
+    if run_id.startswith("ch3-"):
+        lvl = next((x for x in run_id.split("-")
+                    if x.startswith("L") and x[1:].isdigit()), "?")
+        return (f"⚠️ produced inside ch3_conditioning.run (needs the {lvl} routing "
+                f"plan).\n            Regenerating it currently RETRAINS. "
+                f"Fetch YAGO3-10 first:\n            "
+                f"python -m scripts.fetch_data --datasets YAGO3-10")
+    return "unknown run type"
+
+
 def check_labels(records: list[dict], run_id: str) -> dict:
     """
     ★★ THE GUARD THAT MATTERS MOST.
@@ -190,7 +221,7 @@ def main() -> None:
     print("=" * 72)
 
     # ---- phase 1: validate every dataset BEFORE loading a 3 GB model ----
-    plan = []
+    plan, missing, degenerate = [], [], []
     print("\nPHASE 1 — data and label check\n")
     for a in adapters:
         rid = a.name
@@ -201,11 +232,10 @@ def main() -> None:
             continue
         f = d / "test_instructions.json"
         if not f.exists():
-            print(f"  [MISSING] {rid}\n"
-                  f"            {f} not built. Rebuild deterministically:\n"
-                  f"            python -m src.data.build_instructions "
-                  f"--dataset <as above> --n_triples {cfg['data']['train_triples']} "
-                  f"--seed {cfg['seed']}")
+            missing.append(rid)
+            print(f"  [no data] {rid}\n"
+                  f"            {f} does not exist. Rebuild with:\n"
+                  f"            {rebuild_command(rid, cfg)}")
             continue
         recs = json.loads(f.read_text(encoding="utf-8"))
         chk = check_labels(recs, rid)
@@ -213,10 +243,22 @@ def main() -> None:
         print(f"  [{flag}] {rid:34s} {chk['verdict'][:90]}")
         if chk["usable"]:
             plan.append((a, recs, chk))
+        else:
+            degenerate.append(rid)
+
+    print(f"\n  {len(plan)} evaluable · {len(missing)} no data · "
+          f"{len(degenerate)} degenerate labels  (of {len(adapters)} adapters)")
 
     if not plan:
-        raise SystemExit("\nNothing evaluable. Fix the label problem above first.")
-    print(f"\n  {len(plan)} of {len(adapters)} adapters have a usable test set.")
+        # Distinguish the two very different reasons, because the fixes differ.
+        if degenerate and not missing:
+            raise SystemExit(
+                "\nNothing evaluable — the test sets exist but have only ONE class.\n"
+                "That is the real problem: see the verdicts above.")
+        raise SystemExit(
+            "\nNothing evaluable — the built data is simply absent (not a label bug).\n"
+            "Run the rebuild command shown under each adapter, then try again.\n"
+            "Start with Chapter 1: it needs only WN11 and rebuilds in ~1 minute.")
 
     if ns.dry_run:
         print("\n--dry-run: stopping before model load.")

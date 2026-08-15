@@ -129,6 +129,9 @@ def _cast_trainable_to_fp32(model):
     return model
 
 
+from ..eval.fit import ascii_curve, fit_diagnosis  # noqa: F401  (torch-free)
+
+
 def resolve_report_to(tcfg: dict) -> str:
     """
     ★ Never let telemetry kill a training run.
@@ -343,7 +346,15 @@ def train_sft(cfg: dict, data_dir: str, output_dir: str, run_name: str = "run") 
         save_strategy="steps",
         save_steps=tcfg.get("save_steps", 250),
         save_total_limit=tcfg.get("save_total_limit", 2),
-        load_best_model_at_end=False,
+        # ★ OVERFIT GUARD.
+        # 20k instances, 2 epochs, lr 3e-4 on a fixed two-word target is a recipe
+        # for memorising the training split. Keep the checkpoint with the lowest
+        # eval_loss rather than the last one, and stop when it stops improving.
+        # Without this, "the model memorises" becomes a property of our training
+        # setup rather than a finding about KGC.
+        load_best_model_at_end=tcfg.get("load_best_model_at_end", True),
+        metric_for_best_model="eval_loss",
+        greater_is_better=False,
         torch_compile=bool(tcfg.get("torch_compile", False)),   # off on T4
         report_to=resolve_report_to(tcfg),
         seed=cfg["seed"],
@@ -357,6 +368,12 @@ def train_sft(cfg: dict, data_dir: str, output_dir: str, run_name: str = "run") 
         eval_dataset=split["test"],
         data_collator=DynamicCausalCollator(tokenizer.pad_token_id),
     )
+
+    patience = int(tcfg.get("early_stopping_patience", 3))
+    if patience > 0:
+        from transformers import EarlyStoppingCallback
+        trainer.add_callback(EarlyStoppingCallback(early_stopping_patience=patience))
+        print(f"[train] early stopping on eval_loss, patience={patience} evals")
 
     result = trainer.train()
 
@@ -376,7 +393,13 @@ def train_sft(cfg: dict, data_dir: str, output_dir: str, run_name: str = "run") 
         "peak_vram_gb": (torch.cuda.max_memory_allocated() / 1e9
                          if torch.cuda.is_available() else None),
         "output_dir": output_dir,
+        # ★ the learning curve, so over/underfitting is auditable after the fact
+        "curve": fit_diagnosis(trainer.state.log_history),
     }
+    d = summary["curve"]
+    print(f"\n[fit] {d['verdict']}")
+    print(f"      train {d['final_train_loss']}  eval {d['best_eval_loss']} "
+          f"(best at step {d['best_step']} of {d['total_steps']})")
     Path(output_dir, "train_summary.json").write_text(json.dumps(summary, indent=2))
     print(json.dumps(summary, indent=2))
     return summary
