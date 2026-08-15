@@ -91,15 +91,39 @@ def description_quality(kg: KG) -> dict:
     }
 
 
-def relation_stats(kg: KG) -> dict:
+def relation_stats(kg: KG, sample_n: int = 10_000, seed: int = 42) -> dict:
+    """
+    ⚠️ REPORT BOTH EIRs. They differ by orders of magnitude and quoting the wrong
+    one is misleading:
+
+        YAGO3-10 full graph   EIR 19,672   (min relation = 1 triple)
+        YAGO3-10 our sample   EIR    331   (stratified, min_per_relation=10)
+
+    Our stratified sampler does most of that work, so the number that describes
+    what the MODEL SAW is the sampled one. The full-graph figure belongs in a
+    sentence about the benchmark, not about our training set.
+    """
     c = Counter(t.relation for t in kg.train)
     v = sorted(c.values(), reverse=True)
     total = sum(v) or 1
+
+    sampled_eir = None
+    try:
+        from src.data.sampling import sample_triples
+        pos = sample_triples(kg.train, sample_n, seed=seed,
+                             stratified=True, min_per_relation=10)
+        sc = sorted(Counter(t.relation for t in pos).values(), reverse=True)
+        if sc and sc[-1]:
+            sampled_eir = sc[0] / sc[-1]
+    except Exception:
+        pass
+
     return {
         "n_relations": len(c),
         "max_freq": v[0] if v else 0,
         "min_freq": v[-1] if v else 0,
         "edge_imbalance_ratio": (v[0] / v[-1]) if v and v[-1] else None,
+        "edge_imbalance_ratio_sampled": sampled_eir,
         "top1_share": v[0] / total if v else 0,
         "top3_share": sum(v[:3]) / total if v else 0,
         "verdict": (
@@ -202,9 +226,14 @@ def degree(kg: KG) -> dict:
     v = sorted(d.values())
     if not v:
         return {}
+    # ★ NAME the biggest hub. YAGO3-10's max degree is 61,044 — one entity in 6%
+    # of all triples, almost certainly a gender or country value. If it also sits
+    # in many TEST triples it can carry the headline score by itself.
+    top, deg = d.most_common(1)[0]
     return {"median": st.median(v), "mean": sum(v) / len(v),
             "p90": v[int(0.9 * len(v)) - 1], "max": v[-1],
-            "entities_with_degree_1": sum(1 for x in v if x == 1) / len(v)}
+            "entities_with_degree_1": sum(1 for x in v if x == 1) / len(v),
+            "hub": {"entity": top, "degree": deg, "share": deg / max(1, sum(v))}}
 
 
 def coverage_at(kg: KG, sizes=(1000, 10_000, 25_000, 50_000), seed: int = 42) -> dict:
@@ -300,9 +329,18 @@ def show(rep: dict) -> None:
 
     r = rep["relations"]
     eir = f"{r['edge_imbalance_ratio']:.1f}" if r["edge_imbalance_ratio"] else "—"
-    print(f"\n RELATIONS     {r['n_relations']} · EIR {eir} · "
-          f"top1 {r['top1_share']:.1%} · top3 {r['top3_share']:.1%}")
+    se = (f"{r['edge_imbalance_ratio_sampled']:.1f}"
+          if r.get("edge_imbalance_ratio_sampled") else "—")
+    print(f"\n RELATIONS     {r['n_relations']} · EIR {eir} full graph / "
+          f"{se} in our 10k sample · top1 {r['top1_share']:.1%}")
     print(f"    → {r['verdict']}")
+    print(f"    → ★ quote the SAMPLED EIR for anything about our training set")
+
+    g0 = rep.get("degree", {})
+    if g0.get("hub"):
+        print(f"    ⚠️ largest hub: {g0['hub']['entity']!r} appears in "
+              f"{g0['hub']['degree']:,} triples ({g0['hub']['share']:.1%} of all) "
+              f"— check whether it carries the score on its own")
 
     t = rep["test"]
     print(f"\n TEST SET      {t['n_test']:,} · +{t['positive']:,} / "
