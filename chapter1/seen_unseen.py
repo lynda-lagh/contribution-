@@ -63,7 +63,7 @@ def buckets(records, seen):
     return {"both_seen": h & t, "one_seen": h ^ t, "neither": (~h) & (~t)}
 
 
-def analyse(conf, labels, records, seen, name):
+def analyse(conf, labels, records, seen, name, anon_gap=None):
     p = np.clip(np.asarray(conf, float), 0, 1)
     y = np.asarray(labels, int)
     pred = np.where(p >= 0.5, 1, -1)
@@ -120,15 +120,45 @@ def analyse(conf, labels, records, seen, name):
         # strongest possible argument for abstention (Chapter 4).
         out["overconfident_on_unseen"] = (
             out["familiarity_gap"] - out["confidence_gap"] > 0.05)
-        out["verdict"] = (
-            f"★ MEMORISATION CONFIRMED by a second instrument — accuracy tracks "
-            f"familiarity ({b['accuracy']:.4f} seen vs {ne['accuracy']:.4f} unseen, "
-            f"gap {out['familiarity_gap']:+.4f}) with names LEFT INTACT"
-            if out["familiarity_gap"] > 0.10 else
-            f"accuracy does NOT depend on familiarity (gap "
-            f"{out['familiarity_gap']:+.4f}) — the anonymisation result must come "
-            f"from something other than having seen the entity. Report this: it "
-            f"WEAKENS the memorisation reading and is worth knowing.")
+
+        # ★★ THE JOINT READING. This instrument alone cannot interpret itself.
+        #
+        #   A flat familiarity curve does NOT weaken the memorisation claim --
+        #   that was the old verdict text and it was wrong. What the two
+        #   instruments say TOGETHER is what matters:
+        #
+        #     big anonymisation gap + flat familiarity
+        #         -> the memorised knowledge came from PRETRAINING, not from the
+        #            fine-tuning sample. The claim is LOCALISED, not weakened,
+        #            and the obvious alternative explanation is ruled out.
+        #     big anonymisation gap + steep familiarity
+        #         -> training-set recall is also contributing.
+        #     small anonymisation gap
+        #         -> no memorisation claim to make either way.
+        g = out["familiarity_gap"]
+        flat = abs(g) < 0.05
+        if anon_gap is None:
+            out["verdict"] = (f"familiarity gap {g:+.4f} (balanced). No "
+                              f"anonymisation gap supplied, so no joint reading.")
+        elif anon_gap > 0.10 and flat:
+            out["verdict"] = (
+                f"★★ MEMORISATION IS PRETRAINED, NOT TRAINING-SET RECALL. "
+                f"Anonymisation removes {anon_gap:+.4f}, yet the balanced "
+                f"familiarity gap is only {g:+.4f} — withholding the entity from "
+                f"fine-tuning changes nothing. Names carry the accuracy; the "
+                f"knowledge behind them predates this training run. This LOCALISES "
+                f"the claim rather than weakening it, and rules out the obvious "
+                f"alternative explanation.")
+        elif anon_gap > 0.10:
+            out["verdict"] = (
+                f"★ TWO SOURCES. Anonymisation removes {anon_gap:+.4f} and "
+                f"familiarity is worth a further {g:+.4f} (balanced) — so "
+                f"training-set recall contributes on top of pretrained knowledge.")
+        else:
+            out["verdict"] = (
+                f"anonymisation gap is only {anon_gap:+.4f}, so there is no "
+                f"memorisation effect for this instrument to localise "
+                f"(familiarity gap {g:+.4f}).")
     return out
 
 
@@ -200,6 +230,14 @@ def main() -> None:
         for r, t in zip(recs, kg.test):
             r["head"], r["tail"], r["relation"] = t.head, t.tail, t.relation
 
+    # ★ the other instrument's number, so the verdict can be a JOINT reading
+    _t = (d.get("tuned") or {}).get("logit", {}).get("accuracy")
+    _a = (d.get("tuned_anon") or {}).get("logit", {}).get("accuracy")
+    anon_gap = (_t - _a) if (_t is not None and _a is not None) else None
+    if anon_gap is not None:
+        print(f"[seen] anonymisation gap from the same file: {anon_gap:+.4f} "
+              f"(tuned {_t:.4f} - anon {_a:.4f})")
+
     results = []
     for cond in ("untuned", "tuned", "tuned_anon"):
         blk = d.get(cond)
@@ -240,7 +278,7 @@ def main() -> None:
                 f"   misaligned with the scores. Refusing to report a familiarity\n"
                 f"   split that would look plausible and mean nothing.")
 
-        a = analyse(score[:n], y, recs[:n], seen, cond)
+        a = analyse(score[:n], y, recs[:n], seen, cond, anon_gap)
         show(a)
         results.append(a)
 
