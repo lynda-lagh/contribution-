@@ -382,8 +382,10 @@ def main() -> None:
     if ns.json and reps:
         import json
         from pathlib import Path
-        Path(ns.json).write_text(json.dumps(reps, indent=2, default=str), encoding="utf-8")
-        print(f"\nwritten -> {ns.json}")
+        p = Path(ns.json)
+        p.parent.mkdir(parents=True, exist_ok=True)   # results/ may not exist yet
+        p.write_text(json.dumps(reps, indent=2, default=str), encoding="utf-8")
+        print(f"\nwritten -> {p}")
 
 
 if __name__ == "__main__":
