@@ -124,8 +124,20 @@ def main() -> None:
     base = cfg["model"]["name"]
     root = cfg["data"]["root"]
 
-    test = json.loads(Path(root, ns.dataset, "built", "test_instructions.json")
-                      .read_text(encoding="utf-8"))[: ns.limit]
+    # ★ chapter1.data writes to data/{dataset}-A/built/. The old
+    #   data/{dataset}/built/ path never existed -- same bug as in
+    #   chapter1/evaluate.py and chapter1/seen_unseen.py.
+    _cands = [Path(root, f"{ns.dataset}-A", "built", "test_instructions.json"),
+              Path(root, ns.dataset, "built", "test_instructions.json")]
+    _test_path = next((p for p in _cands if p.exists()), None)
+    if _test_path is None:
+        raise SystemExit(
+            "no built test set. Looked in:\n  "
+            + "\n  ".join(str(p.parent) for p in _cands)
+            + f"\n\n  build it:  python -m chapter1.data --condition A "
+              f"--dataset {ns.dataset}")
+    print(f"[ch1] test set <- {_test_path}")
+    test = json.loads(_test_path.read_text(encoding="utf-8"))[: ns.limit]
     prompts = [ALPACA_NO_INPUT.format(instruction=r["instruction"]) for r in test]
     labels = [r["label"] for r in test]
     print(f"[ch1] {ns.dataset}: {len(prompts)} test items "
@@ -138,7 +150,23 @@ def main() -> None:
     out["untuned"] = evaluate(m, t, prompts, labels, "untuned")
     del m; torch.cuda.empty_cache()
 
-    tuned_dir = Path(cfg["output"]["adapter_dir"], f"ch1-{ns.dataset}-{cfg['peft']['method']}")
+    # ★ TWO NAMING SCHEMES EXIST. This script was written against
+    #     checkpoints/ch1-{dataset}-{method}          e.g. ch1-WN11-lora
+    #   but chapter1/run.py (the current trainer) writes
+    #     checkpoints/ch1-{dataset}-{condition}       e.g. ch1-WN11-A
+    #   so a perfectly good adapter produced "skip tuned -- not found" and the
+    #   result file silently lost its tuned arm. Accept both.
+    _ad = Path(cfg["output"]["adapter_dir"])
+    _method = cfg["peft"]["method"]
+
+    def _find(*names):
+        for n in names:
+            p = _ad / n
+            if p.exists():
+                return p
+        return _ad / names[0]          # for the error message
+
+    tuned_dir = _find(f"ch1-{ns.dataset}-A", f"ch1-{ns.dataset}-{_method}")
     if tuned_dir.exists():
         print("[ch1] TUNED")
         m, t = load_model(base, str(tuned_dir))
@@ -147,7 +175,7 @@ def main() -> None:
     else:
         print(f"[ch1] skip tuned -- {tuned_dir} not found")
 
-    anon_dir = Path(cfg["output"]["adapter_dir"], f"ch1-{ns.dataset}-anon-{cfg['peft']['method']}")
+    anon_dir = _find(f"ch1-{ns.dataset}-B", f"ch1-{ns.dataset}-anon-{_method}")
     if anon_dir.exists():
         # ★★ THE ANONYMISED ARM MUST BE EVALUATED ON ANONYMISED PROMPTS.
         #
