@@ -34,10 +34,14 @@ WHAT THIS REPORTS
 -----------------
 The accuracy of the trivial tag-only rule on the TEST set of a built condition.
 
-    ~50%  -> the tag carries no label information.        Condition is clean.
-    >65%  -> ⚠️ material leak. Report it, and read C/D/E/G against this floor
-             rather than against 50%.
-    >80%  -> ✋ the condition is measuring the artefact. Fix before training.
+    <55%  -> the tag carries almost no label information. Clean.
+    >=55% -> ⚠️ MATERIAL. This is the floor for every typed condition, and the
+             comparison "C vs B" is no longer valid: C gets these points free.
+    >=75% -> ✋ the condition is mostly measuring the artefact. Fix before training.
+
+⚠️ The first version of this file called anything under 65% "clean". That was too
+   lenient and it mislabelled the measured YAGO3-10 value of 62.4% -- twelve
+   points of free accuracy is not clean. Thresholds tightened.
 
 Test records already carry head/relation/tail/label, so nothing is re-derived and
 nothing is guessed.
@@ -114,11 +118,14 @@ def audit(cond_id: str, dataset: str, root: str, seed: int) -> dict | None:
     p_yes = pos_match / max(1, n_pos)
     p_no = neg_match / max(1, n_neg)
 
-    verdict = ("clean" if acc < 0.65 else
-               "MATERIAL LEAK" if acc < 0.80 else "MEASURING THE ARTEFACT")
+    verdict = ("clean" if acc < 0.55 else
+               "MATERIAL LEAK" if acc < 0.75 else "MEASURING THE ARTEFACT")
     mark = {"clean": "✓", "MATERIAL LEAK": "⚠️", "MEASURING THE ARTEFACT": "✋"}[verdict]
 
     print(f"\n{mark} [{cond_id}] tag-only rule accuracy {acc:.1%}   ({verdict})")
+    if acc >= 0.55:
+        print(f"      → FLOOR for this condition is {acc:.1%}, not 50%. "
+              f"Compare {cond_id} against {acc:.1%}, NOT against B.")
     print(f"      P(tail tag == '{{r}}::tail')   positives {p_yes:.1%}   "
           f"negatives {p_no:.1%}   separation {abs(p_yes - p_no):.1%}")
     print(f"      n = {n:,}  ({n_pos:,} positive / {n_neg:,} negative)")
@@ -158,7 +165,7 @@ def main() -> None:
         print("\n" + "-" * 72)
         print(f"worst: {worst['condition']} at {worst['tag_only_accuracy']:.1%} "
               f"({worst['verdict']})")
-        if worst["tag_only_accuracy"] >= 0.65:
+        if worst["tag_only_accuracy"] >= 0.55:
             print("\n★ WHAT TO DO — pick one, and say which in the paper:")
             print("  1. Report the tag-only accuracy as the FLOOR for C/D/E/G.")
             print("     Honest, costs nothing, and is itself a finding: it says the")

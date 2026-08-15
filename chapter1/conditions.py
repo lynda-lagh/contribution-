@@ -156,14 +156,54 @@ Report '% of the gap recovered', not raw accuracy:
     recovered = (acc_condition - acc_B) / (acc_A - acc_B)
 """
 
+# ★★ MEASURED 15 Aug 2026 — YAGO3-10, `python -m chapter1.check_type_leak`
+#
+#    tag-only rule accuracy            62.4%   (chance 50%)
+#    P(tail tag == '{r}::tail')  pos    52.5%   neg 27.7%   separation 24.8 pts
+#    worst relations: hasWonPrize 75.2 · hasMusicalRole 75.0 · actedIn 69.9
+#
+# The type tag carries 12.4 points of label information BEFORE any learning,
+# because a positive's tail is a genuine tail of r while a randomly corrupted
+# tail is not. Conditions WITH tags (C, D, E, G) therefore start from a 62.4%
+# floor; conditions WITHOUT tags (A, B, S) start from 50%.
+#
+# ✋ THIS INVALIDATES THE ORIGINAL "C vs B" COMPARISON. C would beat B by ~12
+#    points with no learning at all. The comparison must be against the FLOOR,
+#    not against B.
+TYPE_TAG_FLOOR = {
+    "YAGO3-10": 0.624,      # measured; re-run check_type_leak if the test set changes
+    "WN11": None,           # not yet measured
+}
+
+
+def floor_for(cond_id: str, dataset: str) -> float:
+    """Chance level for a condition: 0.5, or the tag-only floor if it shows types."""
+    if not CONDITIONS[cond_id].types:
+        return 0.5
+    return TYPE_TAG_FLOOR.get(dataset) or 0.5
+
+
 INTERPRETATION = {
-    "C ~= B": "types cannot substitute for names — LoRA at 1.5B installs no type rule",
-    "C >> B": "the model CAN use types and simply does not when names are easier",
-    "D > C":  "it is negative HARDNESS that forces rule use, not the type text",
-    "E > D":  "negative COUNT matters — ⚠️ confounded with 3.5x more instances",
-    "G ~= A": "★ types add nothing when names are available — a direct challenge to "
-              "CATS / Knit / RealKGC, whose gains may be token volume rather than type use",
-    "G > A":  "types add real signal even with names; the anonymised ladder then says what",
+    # --- typed conditions: compare against the FLOOR, never against B ---------
+    "C ~= floor": "★ types cannot substitute for names — C only reproduces the "
+                  "tag-only rule, so LoRA at 1.5B installs no type rule",
+    "C >> floor": "the model CAN use types beyond the trivial rule, and simply "
+                  "does not when names are easier",
+    "C < floor":  "⚠️ tuning made the model WORSE than a one-line heuristic on its "
+                  "own prompt — check for degeneracy before interpreting",
+    "D > C":      "it is negative HARDNESS that forces rule use, not the type text",
+    "E > D":      "negative COUNT matters — ⚠️ confounded with 3.5x more instances",
+    "G ~= A + (floor - 0.5)":
+                  "★ types add nothing beyond the tag artefact when names are "
+                  "available — a direct challenge to CATS / Knit / RealKGC, whose "
+                  "gains may be token volume plus this same artefact",
+    "G > A + (floor - 0.5)":
+                  "types add real signal even with names; the anonymised ladder "
+                  "then says what kind",
+    # --- untagged conditions: chance is 0.5 ----------------------------------
+    "B ~= 0.5":   "anonymisation removes essentially all usable signal",
+    "S ~= B":     "★★ the name↔entity BINDING was the signal",
+    "S ~= A":     "⚠️ the model never used names; investigate before publishing",
 }
 
 ONLY_INCREASES = """
