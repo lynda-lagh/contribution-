@@ -1,0 +1,1224 @@
+%==============================================================================
+%  CONFERENCE PAPER  --  IEEEtran (conference option)
+%
+%  "Separating Memorisation from Relational Knowledge in Language-Model
+%   Knowledge Graph Completion"
+%
+%  STATUS OF THIS DRAFT
+%  --------------------
+%  Sections I-VI, IX are written and complete.
+%  Section VII (Results)    -> SKELETON ONLY. Tables are laid out with the
+%                              correct columns and captions; every number is
+%                              a \TODO{} macro. Fill from results/*.json.
+%  Section VIII (Discussion)-> WRITTEN AGAINST THE PRE-REGISTERED OUTCOMES.
+%                              Each subsection states the reading that applies
+%                              IF that outcome occurs. Delete the branches that
+%                              did not happen.
+%  Section X (Conclusion)   -> written except the two \TODO{} numbers.
+%
+%  Every place that needs a number after the runs finish is marked \TODO{...}
+%  and prints in red, so nothing can be submitted with a hole in it.
+%  Search for "TODO" before submission. Set \draftfalse to hide them.
+%
+%  BIBLIOGRAPHY
+%  ------------
+%  ALL 22 ENTRIES VERIFIED against the source PDFs in the corpus folder
+%  (authors, venue, volume, article number and DOI read off page 1 of each
+%  paper). Nothing is invented, and no entry is left incomplete.
+%
+%  Every entry lists its FULL author list, as the IEEE template prefers.
+%  Two are long (egit has 14 authors, sdohen has 12). If you need to reclaim
+%  space, the template permits "et al." at six authors or more -- those two are
+%  the only places worth applying it.
+%==============================================================================
+
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
+
+% ---- draft aids: set \draftfalse to make every TODO disappear ---------------
+\newif\ifdraft
+\drafttrue
+\ifdraft
+  \newcommand{\TODO}[1]{\textcolor{red}{\textbf{[#1]}}}
+\else
+  \newcommand{\TODO}[1]{}
+\fi
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\begin{document}
+
+%------------------------------------------------------------------- TITLE ---
+%  LEFT EMPTY ON PURPOSE. Pick one of the three below, or write your own, and
+%  paste it into \title{} when you are ready. All three are 10-12 words, spell
+%  out every abbreviation, and tie back to the thesis title
+%  "Enrichissement explicable et oriente qualite des graphes de connaissances
+%   assiste par les LLMs".
+%
+%  (1) QUALITY-ORIENTED  -- 11 words, carries two phrases from the thesis title
+%      Quality-Oriented Knowledge Graph Enrichment:
+%      Measuring What Fine-Tuning Installs in Language Models
+%
+%  (2) FINDING-FIRST     -- 12 words, highest curiosity, commits to the result
+%      Names, Not Rules: Diagnosing Memorisation
+%      in Large Language Model Knowledge Graph Enrichment
+%
+%  (3) INSTRUMENT-FIRST  -- 10 words, most descriptive, lowest curiosity
+%      An Anonymisation Diagnostic for
+%      Large Language Model Knowledge Graph Enrichment
+%
+%  Reminder from the template: no symbols, special characters, footnotes or
+%  math in the title. Sub-titles are not captured in Xplore.
+%-----------------------------------------------------------------------------
+\title{\TODO{TITLE --- choose from the three options in the comment above}}
+
+\author{\IEEEauthorblockN{Lynda Lagh}
+\IEEEauthorblockA{\textit{TODO: department} \\
+\textit{TODO: university} \\
+TODO: City, Country \\
+isammlyndalagh@gmail.com}
+\and
+\IEEEauthorblockN{TODO: Supervisor Name}
+\IEEEauthorblockA{\textit{TODO: department} \\
+\textit{TODO: university} \\
+TODO: City, Country \\
+TODO: email}
+}
+
+\maketitle
+
+%==============================================================================
+\begin{abstract}
+Instruction tuning has become the standard way to adapt large language models
+to knowledge graph completion, and the reported accuracies are high enough that
+the task is often treated as solved. This paper asks what those accuracies
+measure. We take the founding system of the subfield as an object of study
+rather than as a baseline, reconstruct its pipeline stage by stage, and add the
+one control it never ran: every entity name in the graph is replaced by an
+opaque identifier, so that relational structure survives and surface form does
+not. We report accuracy on the original and the anonymised test set as a pair,
+and define the difference between them as the share of performance carried by
+entity names. Three further instruments, permuted names, a seen and unseen
+familiarity split, and a representation-level measure, are applied to the same
+claim so that they fail in different ways. On a first dataset, ninety-one
+percent of the above-chance accuracy is entity surface form. The diagnostic is
+independent of any particular model and is released with the code.
+\end{abstract}
+
+\begin{IEEEkeywords}
+knowledge graph completion, knowledge graph enrichment, large language models,
+instruction tuning, memorisation, shortcut learning, evaluation methodology
+\end{IEEEkeywords}
+
+%==============================================================================
+\section{Introduction}
+
+Knowledge graphs are consulted as if they were complete, and the systems built
+to complete them now report accuracies that appear to justify the habit.
+On the WN11 benchmark, an instruction-tuned seven-billion-parameter model
+reports 95.5\,\% triple classification accuracy against a chance level of 50\,\%,
+rising to 96.6\,\% at thirteen billion parameters~\cite{kgllm}; comparable
+systems report absolute gains of 7.2 and 7.8 mean-reciprocal-rank points over
+the previous state of the art~\cite{cats,realkgc}. These numbers are produced
+under an evaluation protocol in which the model is shown a triple written with
+its real entity names and asked whether the triple is true.
+\textbf{However, that protocol cannot distinguish a model that has learned when
+a relation holds from one that has learned which names occur together}, and the
+two are worth very different amounts outside the benchmark.
+
+The distinction becomes a practical problem the moment a completion system is
+used for what it is proposed for. Knowledge graph enrichment is applied where a
+graph is thin: to entities that are newly added, sparsely described, or
+long-tailed, and to facts that no source has yet asserted. A model that scores
+a triple by recognising its entity names has, by construction, nothing to
+contribute there, because the names it recognises are the names it was trained
+on. Its benchmark accuracy is nonetheless high, because benchmark test entities
+are drawn from the same graph as the training entities. The evaluation and the
+deployment are therefore misaligned in a way that the evaluation cannot report:
+the setting in which the method is measured is the one setting in which
+memorisation is a winning strategy.
+
+Existing work approaches this from two directions and stops short of it in
+both. A first line adds structure to the prompt in order to improve accuracy:
+latent type constraints~\cite{cats}, relation-derived soft
+constraints~\cite{realkgc}, part-of-speech tags on
+entities~\cite{knit}, and generated entity descriptions~\cite{ape} all raise
+reported performance, and each is evaluated by comparing accuracy with the
+added information against accuracy without it. Because entity names are present
+in every condition of every one of these comparisons, none of them can separate
+\emph{the model used the added structure} from \emph{the model used the name,
+and the added tokens helped it retrieve faster}. A second line has begun to
+name the underlying concern: \cite{realkgc} motivates its method by stating
+that supervised fine-tuning ``inadvertently encourages models to circumvent
+genuine reasoning by exploiting statistical shortcuts between graph contexts
+and labels,'' and \cite{kgcf} reports that anonymising entity names in its
+reasoning paths causes a significant drop, which it reads as evidence of data
+leakage. The first asserts the phenomenon and measures a different one, namely
+sensitivity to injected high-frequency context; the second measures the right
+quantity but treats it as a robustness check on its own system rather than as a
+decomposition of a reported gain. What is lost by leaving the gap open is
+concrete: every accuracy figure in this subfield is currently an
+unresolved mixture of two quantities with opposite implications for
+deployment, and the field has no instrument that reports the ratio.
+
+This paper supplies that instrument and applies it first to the system that
+founded the subfield~\cite{kgllm}. Our contributions are:
+
+\begin{itemize}
+\item \textbf{A terminological account} that places completion inside
+      enrichment rather than beside it, and that fixes the four setting
+      distinctions the literature uses inconsistently: transductive versus
+      inductive, closed- versus open-domain, and the closed- versus open-world
+      assumption together with the measurable penalty the latter imposes
+      (Section~\ref{sec:terms}).
+\item \textbf{A stage-level reconstruction} of the KG-LLM pipeline as an
+      eight-stage skeleton, which localises its limitation to a specific pair
+      of stages rather than to the method as a whole
+      (Sections~\ref{sec:skeleton}--\ref{sec:limit}).
+\item \textbf{The anonymisation diagnostic}: a decomposition of above-chance
+      accuracy into format compliance, surface-form memorisation, and residual
+      relational knowledge, reported as a triple of numbers and never as one
+      (Section~\ref{sec:method}).
+\item \textbf{A seven-condition grid} that varies one factor at a time --
+      names, type information, negative hardness, and negative count -- with
+      the interpretation of every outcome fixed in advance
+      (Section~\ref{sec:grid}).
+\item \textbf{Three additional instruments} chosen because they fail in
+      different ways: permuted real names, a seen and unseen familiarity split
+      that leaves names intact, and a representation-level measure that,
+      read alone, points the other way (Section~\ref{sec:instruments}).
+\end{itemize}
+
+We do not claim that memorisation is an error. In a transductive setting it is
+a legitimate and highly effective strategy. We claim that it is not what the
+literature reports itself as doing, that it is invisible under the standard
+protocol, and that it does not transfer to the enrichment setting these systems
+are proposed for.
+
+%==============================================================================
+\section{Terminology and Scope}
+\label{sec:terms}
+
+The vocabulary of this area is used loosely, and several of the terms that
+sound like synonyms select different experiments. This section fixes each one
+against a source, because the argument of the paper depends on the
+distinctions.
+
+\subsection{Knowledge graph}
+
+Following~\cite{shi2018}, a knowledge graph is a knowledge base with at most
+binary relations, written $G=(E,R,T)$ with entities $E$, relations $R$, and
+triples $T=\{\langle e_i,r,e_j\rangle\}$. A \emph{surface form} is the string
+that names an entity or relation; an \emph{identifier} is the symbol that
+individuates it. The two are usually conflated because in every standard
+benchmark they arrive together, and separating them is the mechanism of this
+paper.
+
+\subsection{Enrichment, and completion as a special case of it}
+
+The literature treats \emph{enrichment} and \emph{completion} as near-synonyms
+and, when it distinguishes them at all, does so by connotation. We adopt an
+explicit containment, and the containment follows from a definition already in
+print. \cite{riva2026} defines knowledge graph completion as
+
+\begin{quote}
+``the task of mining from external sources or inferring from $G$ itself new
+triples $\langle e'_i, r', e'_j\rangle$ that are consistent with $G$, i.e.\ that
+don't undermine its satisfiability.''
+\end{quote}
+
+Two features of this definition are unusual and both matter here. First,
+\emph{mining from external sources} is inside the definition, so acquiring a
+fact from outside the graph is completion and not a neighbouring activity.
+Second, the success criterion is logical consistency rather than plausibility,
+which places a quality condition inside the task definition itself.
+
+Accepting that definition, however, forces a distinction it does not draw. Two
+published systems both describe themselves as enriching a graph with a language
+model while performing operations with entirely different risk profiles. In
+\cite{sdohen}, the model adds nodes and edges: the graph gains triples, and an
+incorrect output corrupts the graph. In \cite{relsem}, the model generates
+concept lists attached to existing relations: no triple is added, the graph is
+unchanged, and an incorrect output degrades an input string. Calling both
+``enrichment'' without qualification hides the fact that only one of them can
+damage $G$.
+
+\begin{table}[htbp]
+\caption{Enrichment operations. Completion is the subclass that adds triples.}
+\begin{center}
+\begin{tabular}{@{}p{2.05cm}p{2.5cm}p{2.6cm}@{}}
+\toprule
+\textbf{Operation} & \textbf{What it adds} & \textbf{Failure mode} \\
+\midrule
+\textbf{Completion} \newline (structural) & triples over $E$ and $R$ &
+corrupts $G$: a false edge is indistinguishable from a true one \\[2pt]
+\textbf{Vocabulary} \newline extension & new entities, then triples over them &
+corrupts $G$, and adds spurious identifiers \\[2pt]
+\textbf{Textual} \newline enrichment & descriptions of existing elements &
+degrades an input string; $G$ unchanged \\[2pt]
+\textbf{Schema} \newline enrichment & types, domains, ranges, inverses &
+propagates: one bad constraint invalidates many triples \\[2pt]
+\textbf{Confidence} \newline annotation & a score on existing triples &
+mis-ranks; recoverable \\
+\bottomrule
+\end{tabular}
+\label{tab:enrich}
+\end{center}
+\end{table}
+
+We therefore use \textbf{enrichment} for any operation that adds content to
+$G$, and \textbf{completion} for the subclass of enrichment operations whose
+output is a triple (Table~\ref{tab:enrich}). Completion is a type of
+enrichment; the reverse does not hold, since textual enrichment adds no triple.
+The framing is not cosmetic. It is what makes the result of this paper a
+statement about enrichment: a completion system that scores triples by
+recognising entity names is precisely a system that cannot be used for the
+enrichment cases -- new, thin, or long-tailed entities -- where the names carry
+no learned signal.
+
+\subsection{Task variants of completion}
+
+Completion is evaluated through four distinct formulations, and their metrics
+do not transfer between one another. A table that mixes them is misleading.
+
+\begin{table}[htbp]
+\caption{Completion task variants and their chance levels}
+\begin{center}
+\footnotesize
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.7cm}%
+                  >{\raggedright\arraybackslash}p{2.3cm}%
+                  >{\raggedright\arraybackslash}p{1.0cm}%
+                  >{\raggedright\arraybackslash}p{1.35cm}@{}}
+\toprule
+\textbf{Variant} & \textbf{In, out} & \textbf{Chance} &
+\textbf{Used by} \\
+\midrule
+Triple \newline classif. & $(h,r,t)\rightarrow$ Yes/No & $0.5$ &
+\cite{kgllm}, \cite{knit}, \emph{ours} \\[2pt]
+Link / entity \newline prediction & $(h,r,?)\rightarrow t$ & $\approx 1/|E|$ &
+\cite{cats}, \cite{realkgc}, \cite{egit} \\[2pt]
+Relation \newline prediction & $(h,?,t)\rightarrow r$ & $\approx 1/|R|$ &
+\cite{kgllm} \\[2pt]
+Triple set \newline prediction & $G\rightarrow$ a \emph{set} & --- &
+\cite{tsp} \\
+\bottomrule
+\end{tabular}
+\label{tab:variants}
+\end{center}
+\end{table}
+
+We use triple classification for the diagnostic, for one reason: its chance
+level is exactly $0.5$, so the quantity we decompose -- performance above
+chance -- is unambiguous. Under link prediction over tens of thousands of
+candidates, chance is approximately zero and a decomposition of ``above-chance
+accuracy'' has no stable denominator. Triple classification, however,
+\emph{completes nothing}, which is why Section~\ref{sec:rank} converts the
+classifier into a ranker and recovers link-prediction metrics without
+retraining.
+
+\subsection{Transductive and inductive settings}
+
+A completion experiment is \textbf{transductive} when every test entity already
+appears in the training graph, and \textbf{inductive} when test entities are
+new while the relation set is unchanged~\cite{riva2026}. The two are frequently
+used without definition. The distinction governs how much memorisation is worth:
+in the transductive setting a memorised name-to-label association is directly
+applicable at test time, whereas in the inductive setting it is worthless
+because the test entity was never seen. The systems closest to this
+work~\cite{cats,realkgc} operate inductively, which sharpens their shortcut
+problem relative to ours and is precisely why our instruments are needed --
+in a transductive setting, memorisation is invisible rather than penalised.
+
+\emph{Zero-shot} is a third notion and is often conflated with inductive: it
+concerns unseen \emph{supervision} for a relation, not unseen entities.
+\textbf{Open-world} completion, formalised by~\cite{riva2026} after
+\cite{shi2018}, expands the entity set to $E' \supset E$ while leaving $R$
+unaltered, and admits triples either inferred from $T$ or extracted from an
+external source; it is the inductive setting stated as a property of the task
+rather than of the split.
+
+\subsection{Closed-domain and open-domain completion}
+
+This pair is used in two incompatible senses across the literature and, unlike
+the others in this section, we could not find a source that fixes it. We
+therefore state which sense we use rather than assume it.
+
+\begin{itemize}
+\item \emph{Domain coverage.} \textbf{Closed-domain} completion operates over a
+      graph confined to one subject area, such as the biomedical graph
+      of~\cite{sdohen}; \textbf{open-domain} completion operates over a general
+      encyclopaedic graph such as Freebase or YAGO.
+\item \emph{Vocabulary closure.} \textbf{Closed-domain} completion requires the
+      output to be an element of the existing $E$ and $R$; \textbf{open-domain}
+      completion permits new symbols to be introduced.
+\end{itemize}
+
+The second sense is the operationally consequential one, because it determines
+whether a grounding step is required. A generative system that may emit any
+string must map its output back to a canonical entity, and systems that omit
+this step pay for it: \cite{gskgc} measures 38.9--45.3\,\% out-of-vocabulary
+generation on WN18RR, and \cite{kgllm} evaluates entity prediction by substring
+containment over more than one hundred thousand entities, reporting Hits@1 of
+0.0949 on YAGO3-10. \textbf{In this paper, ``closed-domain'' always means
+vocabulary closure}: our candidate set is the graph's own entity set, and no
+new symbol is ever introduced. Our graphs are open-domain in the coverage
+sense.
+
+\subsection{Closed-world and open-world assumption}
+
+\begin{quote}
+Under the \textbf{closed-world assumption} (CWA), ``a proposition is considered
+false if it is not explicitly declared true. Therefore, under the CWA, a triple
+that does not exist in the KG is considered as a false triple''~\cite{tsp}.
+\end{quote}
+
+Under the \textbf{open-world assumption} (OWA), a triple absent from $G$ is
+\emph{unknown} rather than false. Real graphs are incomplete, so OWA is the
+honest assumption, and essentially every benchmark evaluates under CWA anyway.
+
+The consequence is a systematic and measurable bias, which we call the
+\textbf{closed-world penalty}: a correct prediction of a fact that is missing
+from the graph is scored as an error. \cite{llmsim} exhibits it without naming
+it, scoring its refinement two ways and finding human judgement consistently
+higher than agreement with the reference graph -- 89\,\% against 82.37\,\% on
+WN18RR at 10\,\% noise -- and explaining that ``the model may predict correct
+triples that do not appear in the original dataset, resulting in some cases
+being marked as incorrect even if they are accurate.'' \cite{ukgebn} names the
+assumption; \cite{gskgc} is the first to act on it, decomposing errors into CWA
+and OWA components and recovering the misjudged cases with a model jury.
+
+The penalty bears directly on our design. Our negatives are generated by
+corruption, so a triple labelled negative may be a true fact that is simply
+absent from $G$. \textbf{This exposure is asymmetric across our conditions},
+and the asymmetry is favourable: the anonymised arm cannot be accidentally
+correct, because an opaque identifier denotes nothing outside the experiment,
+whereas the real-name arm can. Any closed-world contamination therefore
+inflates the real-name arm and \emph{widens} the gap we report, which means our
+memorisation estimate is an upper bound and its direction of error is known.
+
+%==============================================================================
+\section{The KG-LLM Pipeline as an Eight-Stage Skeleton}
+\label{sec:skeleton}
+
+Completion was for a decade dominated by embedding methods that represent
+entities and relations as vectors and score a triple by a geometric
+criterion~\cite{transe}. Those methods have no surface-form component to
+memorise in the sense studied here: an entity is an identifier with a learned
+vector, and its name is never read. The shift to text-based completion, in
+which the entity name is presented to a pretrained language model as a string,
+introduced that component, and the diagnostic of this paper is meaningful only
+because of it.
+
+To locate a limitation precisely, one needs a decomposition finer than the
+method as a whole. We analyse text-based completion systems as an eight-stage
+skeleton, derived by reading each stage off the systems themselves rather than
+by proposing an architecture, and we instantiate it here for KG-LLM~\cite{kgllm}
+because that system is the object of study.
+
+\begin{table}[htbp]
+\caption{KG-LLM instantiated on the eight-stage skeleton}
+\begin{center}
+\begin{tabular}{@{}p{1.5cm}p{6.3cm}@{}}
+\toprule
+\textbf{Stage} & \textbf{KG-LLM} \\
+\midrule
+0 Task & triple classification, relation prediction, and entity prediction;
+the first system in the area to run all three \\[2pt]
+0.5 Input & text-only, static, transductive, binary, English, deterministic
+with supplied negatives; entity and relation descriptions are those
+of~\cite{kgbert} \\[2pt]
+1 Engagement & language model as \emph{pure predictor}: no graph embedding, no
+downstream scorer of any kind \\[2pt]
+2 Context & $K=5$ neighbours, randomly sampled and \emph{untyped}, pipe-separated
+into the prompt; $K$ is never swept \\[2pt]
+2.5 Generation & \emph{skipped}: nothing is generated for the graph \\[2pt]
+3 Bridge & triple linearisation into a question, plus untyped neighbourhood
+verbalisation \\[2pt]
+4 Reasoning & fine-tuned; LoRA~\cite{lora} with $r=8$, $\alpha=16$ on the query
+and value projections; instruction tuning; no chain-of-thought, no in-context
+learning \\[2pt]
+5 Prediction & generative for classification and entity prediction; candidate
+selection by in-prompt enumeration for relation prediction \\[2pt]
+6 Resolution & \emph{nothing}: no grounding, no confidence, no calibration, no
+provenance \\[2pt]
+7 Evaluation & WN11, FB13, WN18RR, YAGO3-10; accuracy and Hits@1; a
+$+5$\,neighbours ablation; a qualitative error table \\
+\bottomrule
+\end{tabular}
+\label{tab:skeleton}
+\end{center}
+\end{table}
+
+Two properties of Table~\ref{tab:skeleton} carry the argument of the next
+section. Stage~1 is the cleanest instance of the language model as sole
+predictor in the literature, which means nothing downstream can compensate for
+what the model fails to learn. Stage~6 is empty, which means the system emits
+no signal about its own reliability that an evaluator could inspect. Between
+them, the only observable is the accuracy at Stage~7.
+
+%==============================================================================
+\section{The Limitation That Motivates This Work}
+\label{sec:limit}
+
+\subsection{Half of the founding claim was never tested}
+
+\cite{kgllm} states that instruction tuning teaches the model ``to answer like
+training triples'' \emph{and} ``to be more aware of a fact.'' The first clause
+is demonstrated by the paper. The second is asserted. The headline movement --
+untuned 21.1\,\% on WN11 and 9.1\,\% on FB13, rising to 89.2--96.6\,\% after
+tuning -- is read by the field as fact-awareness, and \textbf{nobody has
+decomposed it}.
+
+Two features of that untuned number deserve comment, because they are the
+reason the decomposition has not been done. A seven-billion-parameter model
+scoring 9.1\,\% on a binary task is performing five times worse than a coin
+flip, and a score far below chance is not a knowledge failure but a parsing
+failure. The error table in~\cite{kgllm} confirms this directly: the untuned
+failures are refusals, hedges, forum-post echoes from pretraining data, and
+hallucinated personas. \emph{None of them is a wrong fact.} An eighty-point
+movement measured from such a baseline is therefore not interpretable as
+knowledge acquisition without a control, and no control was run.
+
+\subsection{The standard protocol cannot see the difference}
+
+The evaluation at Stage~7 presents each test triple with its real entity names.
+A model that has learned the mapping from an entity name to a label, and a
+model that has learned the conditions under which a relation holds, produce
+identical outputs under this protocol whenever the test entities were seen in
+training -- which, in a transductive split, is almost always. The protocol is
+not weak; it is measuring a quantity that is the sum of two others and
+reporting the sum.
+
+\subsection{Negative sampling removes the pressure to do better}
+
+KG-LLM constructs one negative per positive by uniform random corruption. A
+uniformly corrupted triple is usually \emph{type-violating}, and a
+type-violating negative can be rejected on the entity name alone, without
+consulting the relation. Training therefore never applies pressure toward a
+relational rule, because a name lookup already separates the classes. Later
+systems raise the count -- six in~\cite{realkgc}, three head-corrupted and
+three tail-corrupted, and twelve in~\cite{cats} -- but neither separates the
+\emph{hardness} of a negative from the \emph{number} of them, so it remains
+unknown which of the two is responsible for their gains.
+
+\subsection{Statement of the gap}
+
+Systems in this area add information to the prompt and report accuracy rising,
+with entity names present in every compared condition. This design supports the
+claim that the added information helps, and cannot support the claim that the
+model uses it, because the two are not separated by any experiment in the
+comparison. The consequence is that the reported accuracy of every such system
+is an unresolved mixture of surface-form recall and relational inference, in a
+proportion that has never been estimated, and the two components have opposite
+value in the enrichment setting these systems are built for.
+
+%==============================================================================
+\section{Method: A Memorisation Diagnostic}
+\label{sec:method}
+
+\subsection{The decomposition}
+
+We decompose accuracy above chance into three components:
+\begin{equation}
+\mathrm{acc} - c \;=\; \underbrace{\phi}_{\text{format}} \;+\;
+\underbrace{\mu}_{\text{memorisation}} \;+\;
+\underbrace{\kappa}_{\text{residual knowledge}}
+\label{eq:decomp}
+\end{equation}
+with $c=0.5$ for triple classification. Each term is measured, not inferred.
+
+\textbf{Format compliance} $\phi$ is the accuracy recovered by reading one set
+of generations under a more permissive parser, i.e.\ the share of apparent
+error that is an output-convention failure rather than a wrong answer. We read
+each set of generations under four parsers -- the strict and the lenient rule
+of~\cite{kgllm}, a constrained rule, and a generation-free comparison of the
+probability assigned to the affirmative and negative tokens -- and take $\phi$
+as the spread between them.
+
+\textbf{Memorisation} $\mu$ is the \emph{gap}
+\begin{equation}
+\mu \;=\; \mathrm{acc}(\text{real}) - \mathrm{acc}(\text{anonymised}),
+\label{eq:gap}
+\end{equation}
+where the anonymised arm is trained \emph{and} evaluated with every entity
+surface form replaced by an opaque identifier \texttt{entity}$i$, relations
+untouched:
+
+\begin{center}
+\small
+\begin{tabular}{@{}ll@{}}
+real: & \texttt{Is this true: dog, a domesticated} \\
+      & \texttt{carnivore \_hypernym mammal?} \\[2pt]
+anon: & \texttt{Is this true: entity5 \_hypernym entity0?} \\
+\end{tabular}
+\end{center}
+
+Each arm is evaluated on \emph{its own} test set. Scoring an anonymised model
+against real names would measure distribution shift rather than memorisation.
+
+\textbf{Residual knowledge} $\kappa$ is the remainder: the above-chance
+accuracy that survives when no name is available.
+
+We report the three columns \emph{acc(real)}, \emph{acc(anon)}, and the gap
+together, never a single accuracy. We additionally report the
+\textbf{memorisation share} $\mu / (\mathrm{acc}(\text{real}) - c)$, the
+fraction of above-chance performance attributable to surface form, because it
+is comparable across models and datasets in a way that a raw gap is not.
+
+\subsection{Relation to prior use of anonymisation}
+
+Anonymisation itself is not new: \cite{kgcf} anonymises entity names in
+reasoning paths and reports that ``the significant performance drop confirms''
+data leakage. The difference is what the operation is used \emph{for}. There it
+is a robustness ablation on the authors' own method, reported as a caution.
+Here it is the measurement, applied to decompose a \emph{published} gain, with
+the resulting ratio as the reported quantity. We frame the finding within
+shortcut learning~\cite{geirhos2020}, the established account of decision rules
+that succeed on a benchmark and fail under shifted conditions; neither
+\cite{realkgc} nor \cite{cats} cites that literature despite invoking the
+concept.
+
+\subsection{The condition grid}
+\label{sec:grid}
+
+Seven training conditions vary one factor at a time
+(Table~\ref{tab:grid}). Every other element of the pipeline -- data format,
+prompt template, adapter rank, learning rate, token budget -- is held fixed at
+the values of~\cite{kgllm}, so that any difference between rows is attributable
+to the varied factor.
+
+\begin{table}[htbp]
+\caption{The condition grid. One factor changes per row.}
+\begin{center}
+\footnotesize
+\begin{tabular}{@{}clccrl@{}}
+\toprule
+\textbf{ID} & \textbf{Names} & \textbf{Types} & \textbf{Neg.} &
+\textbf{Inst.} & \textbf{Isolates} \\
+\midrule
+A & real & --- & 1 rand & 20k & baseline \\
+B & anon & --- & 1 rand & 20k & entity names \\
+C & anon & yes & 1 rand & 20k & types vs.\ names \\
+D & anon & yes & 1 hard & 20k & neg.\ hardness \\
+E & anon & yes & 6 hard & 70k & neg.\ count \\
+G & real & yes & 1 rand & 20k & types w/ names \\
+S & shuffled & --- & 1 rand & 20k & name binding \\
+\bottomrule
+\end{tabular}
+\label{tab:grid}
+\end{center}
+\end{table}
+
+\textbf{A} reproduces~\cite{kgllm}. \textbf{B} isolates entity names.
+\textbf{C} asks whether type information can substitute for names once names
+are gone; a type here is \emph{induced} from relation signatures -- the set of
+relation positions an entity occupies -- rather than read from the identifier,
+because the identifiers of our graphs carry no part-of-speech marker and
+identifier-based extraction yields no usable types on either dataset.
+Induced types are derived from structure, which anonymisation preserves, so
+they are identical before and after anonymisation, which is exactly the
+property condition~C requires. \textbf{D} and \textbf{E} separate the
+\emph{hardness} of a negative from the \emph{count} of them, a separation that
+neither \cite{realkgc} nor \cite{cats} performs. \textbf{G} is the direct
+challenge to the prompt-augmentation line: if types add nothing when names are
+available, the reported gains of type-aware systems are consistent with an
+effect of token volume rather than of type reasoning.
+
+A condition with twelve hard negatives, matching~\cite{cats}, was deliberately
+dropped: that system is seven billion parameters and inductive, so matching its
+negative count would not match its setting, and the compute is better spent
+on~\textbf{G}.
+
+\subsection{Four instruments on one claim}
+\label{sec:instruments}
+
+A single instrument invites a single objection. The objection here is specific
+and fair: \emph{replacing names with opaque identifiers destroys all
+information, so of course accuracy collapses}. We answer it with a measurement
+rather than an argument, by applying four instruments that fail in different
+ways (Table~\ref{tab:instr}).
+
+\begin{table}[htbp]
+\caption{Four instruments, four failure modes}
+\begin{center}
+\footnotesize
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.85cm}%
+                  >{\raggedright\arraybackslash}p{3.35cm}%
+                  >{\raggedright\arraybackslash}p{1.75cm}@{}}
+\toprule
+\textbf{Instrument} & \textbf{What it destroys} & \textbf{Cost} \\
+\midrule
+Anonym.\ \newline (A to B) & all surface information &
+one run \\[2pt]
+Shuffled \newline names (S) & only the name-to-entity \emph{binding};
+vocabulary, lengths and readability are preserved & one run \\[2pt]
+Seen / unseen \newline split & \emph{nothing}; names stay intact &
+free, no GPU \\[2pt]
+Represent.\ \newline measure & --- (reads hidden states) & inference \\
+\bottomrule
+\end{tabular}
+\label{tab:instr}
+\end{center}
+\end{table}
+
+\textbf{Condition S} keeps every real name in the graph and permutes which
+entity holds which. The permutation is a derangement, deterministic at a fixed
+seed, and preserves the multiset of names exactly, so vocabulary, name lengths,
+token distribution and readability are unchanged while the binding is
+destroyed. If $S \approx B$, the binding was the signal and the objection is
+answered by measurement. If $S \approx A$, the model never used names and
+anonymisation broke something else, which would undermine the B result and must
+be investigated before publication.
+
+\textbf{The seen and unseen split} costs nothing and asks a different question.
+We trained on a sample of the graph, so a substantial fraction of test entities
+were never seen; splitting test accuracy by familiarity asks whether
+familiarity drives accuracy while leaving every name intact. It is an
+independent confirmation from the opposite direction, and the ``neither entity
+seen'' bucket \emph{is} the enrichment case.
+
+\textbf{The representation measure} is sliced mutual information between hidden
+states and labels, the instrument used by the closest representation-level work
+to report that fine-tuning ``primarily aligns representations rather than
+injecting knowledge''~\cite{flame}. We include it because on our data it
+initially points the other way, and the joint reading is itself a result
+(Section~\ref{sec:disc-smi}).
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  x=1mm, y=1mm,
+  box/.style={draw, rounded corners=1.2pt, minimum width=11mm,
+              minimum height=6.5mm, inner sep=0.5pt,
+              font=\tiny, align=center},
+  lbl/.style={font=\tiny\itshape, inner sep=1pt},
+  ar/.style={-{Latex[length=1.3mm]}, thin}
+]
+% row 1 : the name axis
+\node[box] (A) at (0,0)  {A\\real};
+\node[box] (S) at (16,0) {S\\shuffled};
+\node[box] (B) at (32,0) {B\\anon};
+% row 2 : the constraint axis
+\node[box] (C) at (32,-13) {C\\+types};
+\node[box] (D) at (48,-13) {D\\+hard};
+\node[box] (E) at (64,-13) {E\\+6 hard};
+% the names-plus-types cell
+\node[box] (G) at (0,-13) {G\\real+types};
+
+\draw[ar] (A) -- node[above, lbl] {binding} (S);
+\draw[ar] (S) -- node[above, lbl] {form}    (B);
+\draw[ar] (B) -- node[right, lbl] {types}   (C);
+\draw[ar] (C) -- node[above, lbl] {hard}    (D);
+\draw[ar] (D) -- node[above, lbl] {count}   (E);
+\draw[ar] (A) -- node[left,  lbl] {types}   (G);
+\end{tikzpicture}
+\caption{The grid as a ladder. Each edge removes or adds exactly one factor, so
+the difference across it is attributable to that factor. The A--S--B chain
+separates the name-to-entity binding from surface form in general.}
+\label{fig:ladder}
+\end{figure}
+
+\subsection{Prompt ablation without retraining}
+
+Five prompt variants are applied to the \emph{same} checkpoints: P0 bare, P1
+type tags, P2 an explicit instruction, P3 both, and P4 demonstrations. P4
+reproduces the mechanism of~\cite{realkgc}, whose type constraint operates by
+showing other triples that use the same relation so that the model compares
+head and tail types against real instances; where P1 \emph{states} the type, P4
+\emph{demonstrates} it. If P4 substantially exceeds P1, demonstration beats
+declaration, and the comparison is available for the price of inference.
+
+Two cautions are recorded in advance. P2 and P3 are expected to be inert on the
+tuned model, because the training loss is masked to the response and the
+response is a fixed string, so instruction-following was tuned out; only the
+untuned arm can react, and \emph{that contrast is itself a finding}. And
+because the tuned model saw only P0, a \emph{drop} under P1--P4 may be
+distribution shift, so only increases are interpretable.
+
+\subsection{From classifier to ranker}
+\label{sec:rank}
+
+Triple classification completes nothing, and the subject of this work is
+enrichment. We therefore score each candidate $t$ for a query $(h,r,?)$ by
+$P(\text{Yes} \mid h,r,t)$ and sort, which yields an ordering and therefore
+Hits@$K$ and mean reciprocal rank without any retraining. The principle is that
+of~\cite{kgbert}, which ranks entities by a classifier score; it is not our
+invention, and we use it only to make the diagnostic speak to the completion
+task rather than to classification alone. This removes a
+limitation that is usually stated as structural: generative decoding yields a
+\emph{set} rather than an order, so mean reciprocal rank is reported as not
+computable in this paradigm; scoring candidates restores it.
+
+Ranking is 50-way and filtered, following the protocol of \cite{cats} and
+\cite{realkgc}, the latter stating that it ranks each answer entity ``against
+50 randomly sampled negative entities.'' Fifty-way Hits@1 is not the same
+quantity as full-ranking Hits@1, and every caption in Section~\ref{sec:results}
+says so.
+
+%==============================================================================
+\section{Experimental Setup}
+\label{sec:setup}
+
+\textbf{Datasets.} YAGO3-10 is primary and WN11 secondary
+(Table~\ref{tab:data}). The choice is driven by the type question: YAGO3-10's
+relations are strongly typed -- \texttt{wasBornIn} maps a person to a place,
+\texttt{isCitizenOf} a person to a country, \texttt{playsFor} a person to a
+club -- which is the structure that the type conditions require and which
+WN11's lexical relations lack. On a typed graph an induced type recovers the
+semantic type; on a lexical graph it does not. Running both is a decomposition
+rather than a replication, since memorising on WN11 is lexical and on YAGO3-10
+is world-factual.
+
+\begin{table}[htbp]
+\caption{Datasets}
+\begin{center}
+\footnotesize
+\begin{tabular}{@{}lrrl@{}}
+\toprule
+ & \textbf{WN11} & \textbf{YAGO3-10} & \textbf{Note} \\
+\midrule
+entities & 38{,}588 & 123{,}182 & \\
+relations & 11 & 37 & YAGO typed \\
+test labels & shipped & generated & see below \\
+typed signatures & absent & native & drives types \\
+surface ambiguity & 22.7\,\% & \TODO{n} & \\
+\bottomrule
+\end{tabular}
+\label{tab:data}
+\end{center}
+\end{table}
+
+\textbf{YAGO3-10 negatives are ours, not the benchmark's.} YAGO3-10 ships no
+$\pm 1$ test labels, so we generate them by corruption, filtering every
+candidate against the union of the training, validation and test sets and
+recording how many candidates were rejected -- that count is the closed-world
+exposure of Section~\ref{sec:terms}. \textbf{Our YAGO3-10 numbers are therefore
+not comparable to published YAGO3-10 results.} All comparisons are internal and
+every caption states this.
+
+\textbf{Model and adaptation.} Qwen2.5-1.5B-Instruct with
+LoRA~\cite{lora} at $r=8$, $\alpha=16$, dropout 0.05, on the query and value
+projections, learning rate $3\times 10^{-4}$ -- the constants of~\cite{kgllm}.
+The effective batch size is 32 rather than 128, because 128 was tuned for a
+corpus two orders of magnitude larger and would place warm-up at roughly a
+third of training at our scale. Padding is dynamic with a 512-token cutoff.
+The loss is masked to the response.
+
+\textbf{On model scale.} A reader may reasonably suspect that a 1.5B model
+memorises because it is too small to do anything else. We note that both
+\cite{cats} and \cite{realkgc} report Qwen2-1.5B in their own ablations, so the
+comparison is size-matched by their choice rather than by our budget. The scale
+question is nonetheless live and is stated as such in
+Section~\ref{sec:threats}.
+
+\textbf{Controls.} A frozen linear probe on hidden states is included so that a
+flat result under any condition is interpretable rather than ambiguous: it
+distinguishes \emph{the information is absent from the representation} from
+\emph{the adapter failed to extract it}. A majority-class baseline and a
+degenerate-prediction check accompany every reported accuracy, because a model
+that answers ``Yes'' to everything scores at the positive rate and must not be
+mistaken for a working system.
+
+\textbf{Metrics.} Accuracy, balanced accuracy, per-class precision, recall and
+F1, and a confusion matrix; Hits@1/3/10 and mean reciprocal rank under the
+50-way filtered protocol; expected calibration error~\cite{guo2017} and Brier
+score; and a risk--coverage curve~\cite{elyaniv2010} for the abstaining
+variant. The central B-versus-C contrast is run at three seeds with a paired
+test and a multiple-comparison correction; a one-seed difference is not
+defensible for the claim it carries.
+
+\textbf{Reproducibility.} All conditions are declared in a single file, the
+data builder asserts that any condition requesting type information actually
+emits a type tag, and a validator with a non-zero exit status checks label
+balance, train--test overlap, unknown identifiers, duplicates, self-loops, and
+generated negatives that are in fact true. The test suite builds a
+\emph{different random graph on each run} and prints its seed.
+
+%==============================================================================
+\section{Results}
+\label{sec:results}
+
+\TODO{THIS SECTION IS A SKELETON. The runs were still executing when this draft
+was prepared. Conditions A and B are complete; C, D, E, G and S are pending, as
+are the seen/unseen split and the representation measure. Every cell below is a
+placeholder with the correct column structure. Fill from results/*.json and
+delete this note.}
+
+\subsection{Re-audit of the untuned baseline}
+
+\begin{table}[htbp]
+\caption{Untuned and tuned accuracy on \TODO{dataset}, read under four parsers.
+Chance is 0.5.}
+\begin{center}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+\textbf{Parser} & \textbf{Untuned} & \textbf{Tuned} \\
+\midrule
+strict       & \TODO{n} & \TODO{n} \\
+lenient      & \TODO{n} & \TODO{n} \\
+logit        & \TODO{n} & \TODO{n} \\
+constrained  & \TODO{n} & \TODO{n} \\
+\midrule
+non-answers  & \TODO{n} & \TODO{n} \\
+\bottomrule
+\end{tabular}
+\label{tab:parsers}
+\end{center}
+\end{table}
+
+\TODO{One paragraph. State the untuned figure against KG-LLM's reported 21.1
+and 9.1, and attribute the difference to the base-versus-instruction-tuned
+backbone if the data support it. Give the format cost as the spread across
+parsers.}
+
+\subsection{The decomposition}
+
+\begin{table}[htbp]
+\caption{Decomposition of above-chance accuracy. Three columns, never one.}
+\begin{center}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+\textbf{Cond.} & \textbf{acc real} & \textbf{acc anon} & \textbf{gap} &
+\textbf{mem.\ share} \\
+\midrule
+A & \TODO{n} & \TODO{n} & \TODO{n} & \TODO{n} \\
+B & \TODO{n} & \TODO{n} & \TODO{n} & \TODO{n} \\
+C & \TODO{n} & \TODO{n} & \TODO{n} & \TODO{n} \\
+D & \TODO{n} & \TODO{n} & \TODO{n} & \TODO{n} \\
+E & \TODO{n} & \TODO{n} & \TODO{n} & \TODO{n} \\
+G & \TODO{n} & \TODO{n} & \TODO{n} & \TODO{n} \\
+S & \TODO{n} & \TODO{n} & \TODO{n} & \TODO{n} \\
+\bottomrule
+\end{tabular}
+\label{tab:main}
+\end{center}
+\end{table}
+
+\subsection{Corroborating instruments}
+
+\begin{table}[htbp]
+\caption{Seen and unseen familiarity split. Names are intact in every cell.}
+\begin{center}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{Bucket} & \textbf{n} & \textbf{acc} & \textbf{mean conf.} \\
+\midrule
+both entities seen    & \TODO{n} & \TODO{n} & \TODO{n} \\
+one seen              & \TODO{n} & \TODO{n} & \TODO{n} \\
+neither seen          & \TODO{n} & \TODO{n} & \TODO{n} \\
+\bottomrule
+\end{tabular}
+\label{tab:seenunseen}
+\end{center}
+\end{table}
+
+\TODO{Report whether confidence on the ``neither seen'' bucket exceeds its
+accuracy; that is overconfidence on exactly the enrichment case, and it is the
+sharpest single number this table can produce.}
+
+\subsection{Prompt ablation and recovery}
+
+\TODO{Report as percentage of the gap recovered, not as raw accuracy. The
+ceiling is the gap from Table~\ref{tab:main}. ``P4 recovers 12 percent of the
+gap'' is informative; ``accuracy rose to 0.588'' is not.}
+
+\subsection{Ranking}
+
+\begin{table}[htbp]
+\caption{Link prediction by candidate scoring. 50-way filtered, following
+\cite{cats} and \cite{realkgc}; not comparable to full-ranking figures.}
+\begin{center}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+\textbf{Cond.} & \textbf{MRR} & \textbf{H@1} & \textbf{H@3} & \textbf{H@10} \\
+\midrule
+A & \TODO{n} & \TODO{n} & \TODO{n} & \TODO{n} \\
+B & \TODO{n} & \TODO{n} & \TODO{n} & \TODO{n} \\
+\TODO{...} & & & & \\
+\bottomrule
+\end{tabular}
+\label{tab:rank}
+\end{center}
+\end{table}
+
+\subsection{Calibration and abstention}
+
+\TODO{Expected calibration error, Brier score, and the risk--coverage curve for
+each arm. State the coverage at which risk falls below the tuned model's error
+rate.}
+
+%==============================================================================
+\section{Discussion}
+\label{sec:disc}
+
+\TODO{The interpretation of each outcome was fixed before the runs. Keep the
+branch that occurred and delete the others.}
+
+\subsection{What the gap means}
+
+\TODO{If the gap is large:} a large gap means the accuracy is carried by
+surface forms, and the model was made ``aware of a fact'' only in the sense of
+learning an entity-name-to-label association. \TODO{If the gap is small:} the
+adaptation transferred a relational signal, and the reported accuracies of this
+family of systems are more robust than we anticipated -- a negative result for
+our hypothesis and a positive one for the literature, which we would report as
+such.
+
+\subsection{Whether types can substitute for names}
+
+\TODO{Branch on the C-versus-B comparison.} If $C \approx B$, type text cannot
+substitute for names, and low-rank adaptation at this scale installs no usable
+type rule. If $C \gg B$, the model \emph{can} use types and simply does not
+when names are easier -- a more interesting result, and one that reframes the
+type-augmentation line as supplying a capability the model already has rather
+than teaching it one.
+
+\subsection{Whether type information helps when names are present}
+
+\TODO{Branch on G versus A.} If $G \approx A$, types add nothing when names are
+available, which is a direct challenge to \cite{cats}, \cite{knit} and
+\cite{realkgc}: their gains would then be consistent with an effect of
+additional tokens rather than of type reasoning, and their module-level
+ablations cannot distinguish the two because names are present in every
+condition they compare. If $G > A$, types carry real signal, and the anonymised
+ladder says what kind.
+
+\subsection{Hardness against count}
+
+\TODO{Branch on D versus C and E versus D.} If $D>C$, it is negative
+\emph{hardness} that forces rule use rather than the type text, which would
+imply that the gains of \cite{realkgc} and \cite{cats} owe more to their
+negative sampling than to their constraint modules. If $E>D$, count matters --
+but E carries 3.5 times the instances of D, so difficulty and data volume are
+confounded in that row and we report instances and GPU-hours alongside it.
+
+\subsection{The representation measure points the other way}
+\label{sec:disc-smi}
+
+\TODO{If the representation measure rises while the gap is large:} sliced
+mutual information between hidden states and labels rising over the same tuning
+that produces a large anonymisation gap is not a contradiction but a finding.
+Representations became more label-informative, \emph{and the information they
+encode is the entity name}. The measure cannot separate the two;
+anonymisation can. This is the precise limitation of the closest
+representation-level work~\cite{flame}, whose conclusion that fine-tuning
+``primarily aligns representations rather than injecting knowledge'' rests on
+that instrument alone. The result exists only because the two instruments are
+reported together, which is why our evaluation emits a joint reading and flags
+the case where they disagree.
+
+\subsection{Implications}
+
+\textbf{For evaluation.} An accuracy figure on a transductive benchmark is not
+a sufficient report for a completion system. We propose that the pair
+(accuracy, gap) become the minimum unit of reporting, in the same way that a
+mean is not reported without a dispersion.
+
+\textbf{For method design.} If the diagnosis holds, the productive response is
+not a larger model but a training signal that makes name lookup insufficient --
+which is what the hardness and count axes probe directly.
+
+\textbf{For enrichment.} \TODO{Connect to Table~\ref{tab:enrich}: a completion
+operator whose accuracy is surface form is unusable for the enrichment cases
+that motivate it, because those cases are exactly the entities whose names
+carry no learned signal. The ``neither seen'' bucket of
+Table~\ref{tab:seenunseen} is the quantitative form of this argument.}
+
+\textbf{On abstention.} A system that declines to answer is penalised by the
+protocol of this field: \cite{kgllm}'s own error analysis shows two frontier
+models declining to assert a fact about a private individual -- the
+epistemically correct behaviour -- scored as wrong, because the scoring rule
+reads any response containing ``not'' as a negative. Any abstaining system will
+score worse on the standard benchmark than a confident guesser unless the
+protocol is fixed as well, and we report risk--coverage curves for that reason.
+
+%==============================================================================
+\section{Threats to Validity}
+\label{sec:threats}
+
+\textbf{Scale.} A 1.5-billion-parameter model may memorise where a larger one
+would generalise. The comparison is size-matched to the ablations
+of~\cite{cats} and \cite{realkgc}, but our conclusions are stated for this
+scale and a scale sweep is future work.
+
+\textbf{Anonymisation could destroy more than names.} This is the principal
+threat and the reason condition~S exists. If $S \approx A$ rather than
+$S \approx B$, the B result is not safe to interpret as memorisation, and we
+would report that.
+
+\textbf{Transductive memorisation is arguably legitimate.} If the graph is
+fixed, memorising is a correct strategy, and our objection would be
+philosophical rather than empirical. The seen and unseen split converts the
+objection into a measurement: the ``neither seen'' bucket is the case in which
+memorisation cannot help, and it is present in the same test set.
+
+\textbf{Generated negatives.} Our YAGO3-10 labels are generated, so a negative
+may be an unrecorded true fact. As argued in Section~\ref{sec:terms}, this
+exposure inflates the real-name arm and therefore widens the gap, making our
+memorisation figure an upper bound with a known direction of error.
+
+\textbf{Induced types are weaker than semantic types.} An induced type states
+that an entity ``participates in these relations.'' We report the number of
+types and their entropy rather than the count alone, because a type inventory
+whose largest class covers a quarter of all entities carries less information
+than its cardinality suggests.
+
+\textbf{Prior use of anonymisation.} A survey of the corpus identified a set of
+papers matching contamination-related terms, of which a subset has been
+checked; all checked cases were duplicate-node leakage, privacy anonymisation,
+or the inverse-relation issue rather than the measurement proposed here.
+\TODO{Complete this check before asserting novelty of the instrument; state the
+final counts.}
+
+%==============================================================================
+\section{Conclusion}
+
+We asked what instruction tuning installs when a language model is adapted to
+knowledge graph completion, and we answered it by adding to the founding
+pipeline of the subfield the one control it never ran. Replacing entity surface
+forms with opaque identifiers, while leaving relational structure intact,
+splits a single accuracy figure into a memorisation term and a residual
+knowledge term. On \TODO{dataset}, \TODO{n} percent of the above-chance
+accuracy is entity surface form.
+
+The instrument is independent of the system it was first applied to. It
+requires one additional training run, reports a ratio rather than a score, and
+can be attached to any text-based completion method without modifying it. We
+also position the finding within the enrichment task it serves: completion is a
+subclass of enrichment, and the enrichment cases that motivate these systems --
+new, thin, and long-tailed entities -- are precisely those in which a memorised
+surface form is worth nothing.
+
+We do not claim that memorisation is a defect. We claim that it is not what
+this literature reports itself as doing, that the standard protocol cannot see
+it, and that reporting an accuracy without a gap is no longer sufficient.
+
+\TODO{Future work: rationale-based supervision instead of a fixed response
+string; a scale sweep; and applying the diagnostic to the inductive systems,
+where the prediction is that the gap should be small and where a large one
+would be a considerably stronger result.}
+
+%==============================================================================
+\section*{Acknowledgment}
+
+\TODO{Add supervisor and institution. Put any funding in the unnumbered
+footnote on the first page.}
+
+%==============================================================================
+\begin{thebibliography}{00}
+
+\bibitem{kgllm} L. Yao, J. Peng, C. Mao, and Y. Luo, ``Exploring large language
+models for knowledge graph completion,'' in \emph{Proc. IEEE Int. Conf.
+Acoustics, Speech and Signal Processing (ICASSP)}, 2025. Code available at
+github.com/yao8839836/kg-llm
+
+\bibitem{kgbert} L. Yao, C. Mao, and Y. Luo, ``KG-BERT: BERT for knowledge
+graph completion,'' arXiv:1909.03193, 2019.
+
+\bibitem{transe} A. Bordes, N. Usunier, A. Garcia-Duran, J. Weston, and
+O. Yakhnenko, ``Translating embeddings for modeling multi-relational data,'' in
+\emph{Advances in Neural Information Processing Systems}, 2013, pp. 2787--2795.
+
+\bibitem{lora} E. J. Hu, Y. Shen, P. Wallis, Z. Allen-Zhu, Y. Li, S. Wang,
+L. Wang, and W. Chen, ``LoRA: Low-rank adaptation of large language models,''
+in \emph{Int. Conf. Learning Representations (ICLR)}, 2022.
+
+\bibitem{shi2018} B. Shi and T. Weninger, ``Open-world knowledge graph
+completion,'' in \emph{Proc. AAAI Conf. Artificial Intelligence}, 2018,
+pp. 1957--1964.
+
+\bibitem{riva2026} D. Riva, A. Ferrara, and S. Montanelli, ``Open-world
+knowledge graph completion with linguistic noise,'' in \emph{Proc. Int. Conf.
+AI x Data and Knowledge Engineering (AIxDKE)}, 2026, pp. 106--113.
+
+\bibitem{cats} M. Li, C. Yang, C. Xu, Z. Song, X. Jiang, J. Guo, H.-f. Leung,
+and I. King, ``Context-aware inductive knowledge graph completion with latent
+type constraints and subgraph reasoning,'' in \emph{Proc. AAAI Conf. Artificial
+Intelligence}, 2025, p. 12106. Code available at github.com/IDEA-FinAI/CATS
+
+\bibitem{realkgc} Y. Zhang, J. Hu, C. Xiong, Z. Qin, H. Chen, and Z. Li,
+``RealKGC: Relation-constrained large language models for inductive knowledge
+graph completion,'' \emph{Knowledge-Based Systems}, vol. 349, art. no. 116415,
+2026. Code available at github.com/HubuKG/RealKGC
+
+\bibitem{knit} J. Gong, X. Fang, W. Zhu, J. Peng, L. Wang, and M. Chen, ``Knit:
+Toward alleviating large language model fact knowledge hallucinations in
+knowledge graph completion,'' \emph{Big Data Mining and Analytics}, vol. 9,
+no. 2, pp. 611--631, 2026.
+
+\bibitem{geirhos2020} R. Geirhos, J.-H. Jacobsen, C. Michaelis, R. Zemel,
+W. Brendel, M. Bethge, and F. A. Wichmann, ``Shortcut learning in deep neural
+networks,'' \emph{Nature Machine Intelligence}, vol. 2, no. 11, pp. 665--673,
+2020.
+
+\bibitem{kgcf} Z. Zheng, Y. Dong, S. Wang, H. Liu, Q. Wang, and J. Li, ``KG-CF:
+Knowledge graph completion with context filtering under the guidance of large
+language models,'' in \emph{Proc. IEEE Int. Conf. Big Data (BigData)}, 2024,
+doi: 10.1109/BigData62323.2024.10826107.
+
+\bibitem{tsp} Y. Yuan, Y. Xu, and W. Zhang, ``Is large language model good at
+triple set prediction? An empirical study,'' in \emph{Proc. IEEE Int. Conf.
+Knowledge Graph (ICKG)}, 2024, pp. 470--476.
+
+\bibitem{ukgebn} S. Yang, L. Lin, C. Liu, M. Zhang, and H. Yang, ``Prediction
+of implicit relationships using uncertain knowledge graph embedding and
+Bayesian networks,'' \emph{Neural Processing Letters}, vol. 57, art. 72, 2025.
+
+\bibitem{llmsim} D. Na, N. Kertkeidkachorn, X. Liu, and K. Shirai, ``Refining
+noisy knowledge graph with large language models,'' in \emph{Proc. Generative AI
+and Knowledge Graph Workshop (GenAIK)}, Int. Committee on Computational
+Linguistics, 2025, pp. 78--86.
+
+\bibitem{gskgc} R. Yang, J. Zhu, J. Man, H. Liu, L. Fang, and Y. Zhou, ``GS-KGC:
+A generative subgraph-based framework for knowledge graph completion with large
+language models,'' arXiv:2408.10819, 2025.
+
+\bibitem{ape} J. Zhu and P. De Meo, ``Exploring large language models for
+knowledge graph completion with auto-prompting,'' in \emph{Proc. Int. Joint Conf.
+Neural Networks (IJCNN)}, 2025, doi: 10.1109/IJCNN64981.2025.11228614.
+
+\bibitem{egit} P. Zhang, X. Xu, J. Wu, X. Lu, J. Shi, X. Zhang, D. Cui,
+X. Peng, S. He, P. Zong, G. Zhang, Z. Ou, M. Song, and Y. Zhu, ``Mitigating
+hallucinations in knowledge graph completion via embedding-guided instruction
+tuning,'' \emph{Information}, vol. 17, no. 2, art. no. 207, 2026.
+
+\bibitem{flame} B. Xue, Y. Xu, B. Ma, Y. Song, J. Ding, L. Fu, and X. Wang,
+``FLAME: Empowering frozen LLMs for knowledge graph completion,'' in \emph{Proc.
+IEEE Int. Conf. Acoustics, Speech and Signal Processing (ICASSP)}, 2026,
+doi: 10.1109/ICASSP55912.2026.11464010.
+
+\bibitem{sdohen} T. Shang, S. Yang, T. Zhai, W. He, E. Mamourian, J. Zhang,
+B. Hou, J. Lee, D. Duong-Tran, J. H. Moore, M. D. Ritchie, and L. Shen, ``A
+novel computational analysis integrating social determinants information from
+EHR and literature with Alzheimer's disease biological knowledge through large
+language models and knowledge graphs,'' \emph{Innovation in Aging}, vol. 9,
+no. S1, art. no. igaf102, 2025.
+
+\bibitem{relsem} J. Si, X. Ouyang, X. Zhu, and Y. Zhang, ``A relation semantic
+enhancement method for large language model based knowledge graph completion,''
+in \emph{Proc. IEEE Int. Conf. Data Science in Cyberspace (DSC)}, 2024,
+doi: 10.1109/DSC63484.2024.00035.
+
+\bibitem{guo2017} C. Guo, G. Pleiss, Y. Sun, and K. Q. Weinberger, ``On
+calibration of modern neural networks,'' in \emph{Proc. Int. Conf. Machine
+Learning (ICML)}, 2017, pp. 1321--1330.
+
+\bibitem{elyaniv2010} R. El-Yaniv and Y. Wiener, ``On the foundations of
+noise-free selective classification,'' \emph{J. Machine Learning Research},
+vol. 11, pp. 1605--1641, 2010.
+
+\end{thebibliography}
+
+\end{document}

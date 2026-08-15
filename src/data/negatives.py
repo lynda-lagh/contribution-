@@ -57,6 +57,30 @@ def build_relation_type_index(kg: KG) -> dict[str, tuple[set[str], set[str]]]:
     return {r: (dom[r], rng_[r]) for r in set(dom) | set(rng_)}
 
 
+# ★ PERF: sorting a relation's range on every call was the second half of the
+#   hot loop. `isAffiliatedTo` has tens of thousands of observed tails on
+#   YAGO3-10, and it was being sorted once per generated negative. Sort once per
+#   index and keep the list.
+#
+#   The draw is now rejection sampling over the full sorted range, rejecting the
+#   gold tail, instead of `choice(sorted(range - {gold}))`. Those are the SAME
+#   distribution -- uniform over range minus gold -- but a different random
+#   stream, so negatives generated after this change will differ from ones
+#   generated before it. Nothing had been trained on type_consistent negatives
+#   when this landed, so no result is affected.
+_SORTED_RANGE_CACHE: dict[int, dict[str, list[str]]] = {}
+
+
+def _sorted_ranges(type_index: dict[str, tuple[set[str], set[str]]]) -> dict[str, list[str]]:
+    key = id(type_index)
+    hit = _SORTED_RANGE_CACHE.get(key)
+    if hit is None:
+        hit = {r: sorted(v[1]) for r, v in type_index.items()}
+        _SORTED_RANGE_CACHE.clear()          # only one index is ever live
+        _SORTED_RANGE_CACHE[key] = hit
+    return hit
+
+
 def type_consistent_negative(t: Triple, kg: KG, rng: random.Random,
                              type_index: dict[str, tuple[set[str], set[str]]]) -> Triple | None:
     """
@@ -64,10 +88,15 @@ def type_consistent_negative(t: Triple, kg: KG, rng: random.Random,
     relation's range, so the negative is type-VALID but factually wrong.
     Exactly the "plausible but wrong" case that type-2 hallucination describes.
     """
-    rng_set = type_index.get(t.relation, (set(), set()))[1] - {t.tail}
-    if not rng_set:
+    pool = _sorted_ranges(type_index).get(t.relation)
+    if not pool:
         return None
-    return Triple(t.head, t.relation, rng.choice(sorted(rng_set)), -1)
+    if len(pool) == 1 and pool[0] == t.tail:
+        return None                          # the gold tail is the whole range
+    while True:
+        cand = rng.choice(pool)
+        if cand != t.tail:
+            return Triple(t.head, t.relation, cand, -1)
 
 
 # ------------------------------------------------------------------ hard: KGE
@@ -96,7 +125,13 @@ def make_negatives(triples: list[Triple], kg: KG, strategy: str = "random",
     and reports the fallback rate -- which is itself worth stating in the thesis.
     """
     rng = random.Random(seed)
-    type_index = build_relation_type_index(kg) if strategy == "type_consistent" else None
+    # ★ PERF: accept a prebuilt index. build_relation_type_index scans the WHOLE
+    #   training graph (1.08M triples on YAGO3-10). Callers that generate
+    #   negatives one triple at a time were rebuilding it per call -- 10k rebuilds
+    #   for condition D, 60k for E. Pass `type_index=` in from the caller.
+    type_index = kw.get("type_index")
+    if type_index is None and strategy == "type_consistent":
+        type_index = build_relation_type_index(kg)
     candidates = kw.get("kge_candidates", {})
 
     out, fallbacks = [], 0

@@ -180,13 +180,27 @@ def build_condition(cond: Condition, dataset: str, root: str, n_triples: int,
     n_out = len(pos) * (1 + cond.n_negatives)
     print(f"  building {len(pos):,} positives × (1 + {cond.n_negatives} negatives) "
           f"= {n_out:,} instances")
+
+    # ★ Build the relation type index ONCE. It scans the entire training graph
+    #   (1,079,040 triples on YAGO3-10). Rebuilding it inside the loop made
+    #   condition D take ~1.5 h and condition E ~9 h; with it hoisted, both are
+    #   minutes. Conditions A/B/C were never affected because `random` negatives
+    #   do not touch the index.
+    neg_index = (build_relation_type_index(kg)
+                 if cond.negatives == "type_consistent" else None)
+    if neg_index is not None:
+        print(f"  [negatives] type index built once over {len(kg.train):,} "
+              f"training triples -> {len(neg_index)} relations")
+
     for p in track(pos, f"[{cond.id}] train instances", total=len(pos), unit="triple"):
         d = demos.get(p.relation) if demos else None
         records.append({"instruction": render(p, kg, pv, types, d),
                         "input": "", "output": YES})
         # ★ n_negatives per positive -- the axis D/E move
         for _ in range(cond.n_negatives):
-            neg = make_negatives([p], kg, strategy=cond.negatives, seed=rng.randrange(1 << 30))[0]
+            neg = make_negatives([p], kg, strategy=cond.negatives,
+                                 seed=rng.randrange(1 << 30),
+                                 type_index=neg_index)[0]
             records.append({"instruction": render(neg, kg, pv, types, d),
                             "input": "", "output": NO})
     rng.shuffle(records)
