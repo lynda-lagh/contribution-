@@ -134,10 +134,16 @@ def calibration_by_familiarity(conf: list[float], correct: list[bool],
     def block(mask):
         if mask.sum() < 20:
             return None
+        # ★ expected_calibration_error returns a DICT
+        #   {"ece", "mce", "n_bins", "n", "bins"} -- not a float. Wrapping it in
+        #   float() raised TypeError and killed evaluate_both AFTER all the GPU
+        #   scoring was done, so two 40-minute runs produced no saved result.
+        cal = expected_calibration_error(p[mask], c[mask], n_bins)
         return {"n": int(mask.sum()),
                 "accuracy": float(c[mask].mean()),
                 "mean_confidence": float(p[mask].mean()),
-                "ECE": float(expected_calibration_error(p[mask], c[mask], n_bins)),
+                "ECE": float(cal["ece"]),
+                "MCE": float(cal["mce"]),
                 "Brier": float(brier_score(p[mask], c[mask]))}
 
     overall, s, u = block(np.ones_like(seen, bool)), block(seen), block(~seen)

@@ -175,10 +175,25 @@ def evaluate_both(cfg: dict, cond, dataset: str, adapter: str, limit: int = 2000
     # ★ seen/unseen, computed here so it is never a separate manual step
     from .analysis import calibration_by_familiarity, seen_unseen
     rr = out["_real"]
+    # ★ NEVER let a post-hoc analysis destroy the scoring. These blocks run after
+    #   ~8 minutes of GPU work and nothing has been saved yet; a TypeError in a
+    #   calibration helper previously discarded two complete 40-minute runs.
+    #   Analysis is a convenience -- the accuracies are the result.
     if rr["records"] and "seen_head" in rr["records"][0]:
-        out["seen_unseen"] = seen_unseen(rr["records"], rr["correct"])
-        out["calibration"] = calibration_by_familiarity(
-            [max(c, 1 - c) for c in rr["confidences"]], rr["correct"], rr["records"])
+        for _name, _fn in (
+            ("seen_unseen",
+             lambda: seen_unseen(rr["records"], rr["correct"])),
+            ("calibration",
+             lambda: calibration_by_familiarity(
+                 [max(c, 1 - c) for c in rr["confidences"]],
+                 rr["correct"], rr["records"])),
+        ):
+            try:
+                out[_name] = _fn()
+            except Exception as exc:                       # noqa: BLE001
+                out[f"{_name}_error"] = f"{type(exc).__name__}: {exc}"
+                print(f"  ⚠️ {_name} failed ({type(exc).__name__}: {exc}) — "
+                      f"accuracies are unaffected and still returned")
 
     # ---- ★ SMI: the third instrument -------------------------------------
     if with_smi:
