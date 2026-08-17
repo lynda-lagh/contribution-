@@ -35,10 +35,19 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO = "https://github.com/IDEA-FinAI/CATS.git"
+REPO = "https://github.com/DataArcTech/CATS.git"     # IDEA-FinAI redirects here
 CACHE = Path(".cache/CATS")
 TRIPLE_NAMES = ("train", "valid", "dev", "test", "train_ind", "test_ind",
                 "inductive", "ind")
+
+# ⚠️ THE REPOSITORY CONTAINS CODE ONLY.
+#    Fourteen files, all .py/.pdf/.png/.md. Their README §Dataset says:
+#      "Download the full dataset and LLM instructions from the following link"
+#    and points at a Google Drive folder. Cloning will therefore NEVER produce a
+#    split, and the old error message ("no split-like files found") named the
+#    symptom rather than the cause.
+GDRIVE = "https://drive.google.com/drive/folders/17C3BsllCWy_TK3B5WwCjxPQo2heuLJPz"
+DATA_CACHE = Path(".cache/CATS-data")
 
 
 def clone(dest: Path, depth: int = 1) -> None:
@@ -56,13 +65,64 @@ def clone(dest: Path, depth: int = 1) -> None:
             "  --cache <path-to-extracted-repo>.")
 
 
+def fetch_gdrive(dest: Path, url: str = GDRIVE) -> bool:
+    """
+    Download the CATS data folder from Google Drive with `gdown`.
+
+    Returns True if anything landed. Google Drive folder downloads are not
+    guaranteed — large folders are throttled and the API caps listings — so a
+    failure here is expected often enough that the caller must have a fallback,
+    not an exception.
+    """
+    if dest.exists() and any(dest.rglob("*")):
+        print(f"[cats] data already downloaded at {dest}")
+        return True
+    try:
+        import gdown  # noqa: F401
+    except ImportError:
+        print("[cats] installing gdown ...")
+        subprocess.run([sys.executable, "-m", "pip", "install", "-q", "gdown"],
+                       check=False)
+    dest.mkdir(parents=True, exist_ok=True)
+    print(f"[cats] downloading data folder from Google Drive -> {dest}")
+
+    # ⚠️ gdown's flags moved between versions: --remaining-ok exists on 4.x/5.x
+    #    and not on some builds. Try the richest form first and degrade, rather
+    #    than pinning a version the notebook environment may not honour.
+    attempts = [
+        ["--folder", url, "-O", str(dest), "--remaining-ok"],
+        ["--folder", url, "-O", str(dest)],
+        ["--folder", "--no-cookies", url, "-O", str(dest)],
+    ]
+    last = ""
+    for args in attempts:
+        r = subprocess.run([sys.executable, "-m", "gdown", *args],
+                           capture_output=True, text=True)
+        got = [p for p in dest.rglob("*") if p.is_file()]
+        if got:
+            print(f"[cats] downloaded {len(got):,} files")
+            return True
+        last = (r.stderr or r.stdout or "").strip()
+        if "unrecognized arguments" not in last:
+            break            # a real failure, not a flag mismatch — stop retrying
+
+    print(f"[cats] gdown did not succeed.")
+    if last:
+        print("       " + last.splitlines()[-1][:130])
+    return False
+
+
 def inventory(root: Path) -> dict[str, list[Path]]:
     """Everything that could plausibly be a split, grouped by parent directory."""
     out: dict[str, list[Path]] = {}
+    if not root.exists():
+        return out
     for p in sorted(root.rglob("*")):
-        if not p.is_file() or p.suffix.lower() not in (".txt", ".tsv", ".csv"):
+        # ★ no extension filter beyond the obvious: CATS ships some splits with
+        #   no suffix at all, and the instructions as .json
+        if not p.is_file() or p.suffix.lower() not in (".txt", ".tsv", ".csv", ".json", ""):
             continue
-        if ".git" in p.parts:
+        if ".git" in p.parts or p.stat().st_size == 0:
             continue
         stem = p.stem.lower()
         if any(k in stem for k in TRIPLE_NAMES) or "entity" in stem or "relation" in stem:
@@ -100,7 +160,15 @@ def convert(src: Path, dst: Path, delim: str) -> int:
 def main() -> None:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--cache", default=str(CACHE))
+    ap.add_argument("--cache", default=str(CACHE),
+                    help="cloned repo, or a folder you downloaded yourself")
+    ap.add_argument("--data-cache", default=str(DATA_CACHE),
+                    help="where the Google Drive data lands")
+    ap.add_argument("--gdrive", default=GDRIVE, help="CATS data folder URL")
+    ap.add_argument("--no-gdrive", action="store_true",
+                    help="skip the Drive download (use with --cache <your folder>)")
+    ap.add_argument("--no-clone", action="store_true",
+                    help="skip cloning; --cache already points at the files")
     ap.add_argument("--dataset", default=None,
                     help="substring to match, e.g. WN18RR or fb15k")
     ap.add_argument("--out", default=None, help="e.g. data/WN18RR-ind")
@@ -109,11 +177,44 @@ def main() -> None:
     ns = ap.parse_args()
 
     cache = Path(ns.cache)
-    clone(cache, ns.depth)
+    data_cache = Path(ns.data_cache)
 
-    inv = inventory(cache)
+    if not ns.no_clone:
+        clone(cache, ns.depth)
+
+    # ★ the data is NOT in the repo — fetch the Drive folder as well
+    if not ns.no_gdrive:
+        fetch_gdrive(data_cache, ns.gdrive)
+
+    inv = {}
+    for root, tag in ((data_cache, "gdrive"), (cache, "repo")):
+        for d, files in inventory(root).items():
+            inv[f"[{tag}] {d}"] = files
+
     if not inv:
-        raise SystemExit(f"no split-like files found under {cache}")
+        raise SystemExit(
+            f"\n{'='*76}\n"
+            f"  NO SPLIT FILES FOUND\n"
+            f"{'='*76}\n"
+            f"  The CATS repository contains CODE ONLY (14 files: .py/.pdf/.png/.md).\n"
+            f"  Its README section 'Dataset' says:\n\n"
+            f"      \"Download the full dataset and LLM instructions from the\n"
+            f"       following link\"  ->  Google Drive\n\n"
+            f"  So cloning can never produce a split. Automatic download was\n"
+            f"  attempted and did not land anything under {data_cache}.\n\n"
+            f"  TWO WAYS FORWARD\n"
+            f"  ----------------\n"
+            f"  1. Download by hand and point this script at it:\n"
+            f"       {ns.gdrive}\n"
+            f"     Take the 'datasets' folder, upload it to Kaggle as a Dataset,\n"
+            f"     then re-run with:\n"
+            f"       --no-clone --no-gdrive --cache /kaggle/input/<your-dataset>\n\n"
+            f"  2. Build an equivalent inductive split from a graph you already\n"
+            f"     have. Absolute numbers are then not comparable to the CATS\n"
+            f"     table, but Chapter 3's claim is internal (S0 vs R vs the\n"
+            f"     policies at a matched budget), so it does not need theirs:\n"
+            f"       python -m scripts.make_inductive_split --source WN11 "
+            f"--out WN11-ind\n")
 
     print(f"\n{'='*76}\nCATS REPO INVENTORY\n{'='*76}")
     for d, files in inv.items():

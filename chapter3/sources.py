@@ -218,7 +218,12 @@ class GraphIndex:
         n_sup = 0
         if use_inference_graph:
             seen = {e for t in kg.train for e in (t.head, t.tail)}
-            for t in kg.test:
+            # ★ valid FIRST. When the dataset is CATS-derived, valid.tsv holds
+            #   `inductive_graph.txt` — the facts about unseen entities that make
+            #   the setting solvable at all. Omitting it leaves every test entity
+            #   with no observable context, which is the exact failure that once
+            #   made this pipeline report a false null result.
+            for t in (*kg.valid, *kg.test):
                 if t.label is not None and t.label < 0:
                     continue                       # false triples are not evidence
                 if t.head not in seen or t.tail not in seen:
