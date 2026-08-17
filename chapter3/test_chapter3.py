@@ -145,17 +145,30 @@ def run(seed: int) -> None:
           len({tuple(sorted(a.reasons.values())) for a in allocs.values()}) > 1,
           "otherwise the explanation is boilerplate")
 
-    # -------------------------------------------------------------- ORACLE
-    print("\nORACLE AND FLOOR")
-    helpful = [b for b in bl if b.meta.get("helps")]
-    ao = allocate(bl, 1000, POLICIES["ORACLE"], count=words)
-    check("oracle", "oracle keeps only blocks that help",
-          all(b.meta.get("helps") for b in ao.kept),
-          f"{len(ao.kept)} kept of {len(helpful)} helpful")
+    # -------------------------------------------------------------- CEILING
+    print("\nCEILING")
+    from .policies import RETIRED
+    check("oracle", "ORACLE is retired from the runnable grid",
+          "ORACLE" not in POLICIES and "ORACLE" in RETIRED,
+          "it kept no blocks and silently reproduced the B=0 floor")
 
-    check("oracle", "oracle is a ceiling, not a method",
-          "uses gold" in POLICIES["ORACLE"].reason(bl[0], {}),
-          "its reason says so out loud")
+    from .report import policy_selection_oracle
+    qs = [f"q{i}" for i in range(60)]
+    fake = {}
+    for pol, sk in (("S0_uniform", 3), ("S1_property", 2), ("S4_instance", 4)):
+        fake[(pol, 120)] = {"ranking": {"MRR": 0.0},
+                            "cost": {"mean_context_tokens": 119.0},
+                            "rows": [{"qid": q, "rank": 1 + (hash((pol, q)) % sk)}
+                                     for q in qs]}
+    o = policy_selection_oracle(fake, 120)
+    per_pol = {p: sum(1.0 / r["rank"] for r in d["rows"]) / len(qs)
+               for (p, _), d in fake.items()}
+    check("oracle", "post-hoc ceiling is >= every single policy",
+          o is not None and o["MRR"] >= max(per_pol.values()) - 1e-9,
+          f"ceiling {o['MRR']:.4f} vs best single {max(per_pol.values()):.4f}")
+    check("oracle", "ceiling reports which policy wins each query",
+          abs(sum(o["best_policy_share"].values()) - 1.0) < 1e-6,
+          f"shares sum to 1 over {len(o['best_policy_share'])} policies")
 
     # ------------------------------------------------------- INDUCTIVE SHAPE
     print("\nINDUCTIVE SPLIT")
@@ -224,9 +237,10 @@ def run(seed: int) -> None:
     print("\nGRID")
     check("grid", "budget sweep includes a zero floor", 0 in BUDGETS,
           f"budgets {BUDGETS}")
-    check("grid", "control and ceiling both present",
-          "R_random" in POLICIES and "ORACLE" in POLICIES,
-          "R makes results interpretable; ORACLE bounds them")
+    check("grid", "the random control is present",
+          "R_random" in POLICIES,
+          "without R, 'S4 ~= S0' cannot separate 'specificity does not pay' "
+          "from 'our policy is bad'")
 
     mono = [allocate(bl, b, POLICIES["S4_instance"], count=words).spent
             for b in (0, 30, 60, 120)]

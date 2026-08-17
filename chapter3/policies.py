@@ -284,17 +284,32 @@ class Oracle(Policy):
     ★ THE CEILING, and it is not a method.
 
     Allocates using `meta['helps']`, computed against the gold answer. Infeasible
-    in deployment; its only job is to bound what ANY policy could achieve.
+    in deployment; its only job was to bound what ANY policy could achieve.
 
-    ⚠️ RUN THIS FIRST. If ORACLE ≈ S0 at a given budget, no allocation policy can
-       win there, and the twelve policy runs would be measuring noise. One cheap
-       run can save a week.
+    ⚠️⚠️ NOT USABLE AS SPECIFIED, AND DISABLED FOR THAT REASON.
+       `meta['helps']` would have to say whether a block improves THIS query,
+       which is only knowable by scoring the model with and without that block:
+       2^|blocks| forward passes per query. `sources.candidate_blocks` therefore
+       never sets the key, so this policy kept nothing and spent 0 tokens at
+       every budget — silently identical to the B=0 floor, while being read as
+       "no allocation can help here".
+
+    ★ THE CEILING WE REPORT INSTEAD is computed after the fact in
+      `report.py::policy_selection_oracle`: for each query, take the best rank
+      achieved by ANY policy at that budget. It bounds what a perfect *router
+      over our policies* could reach, costs no extra GPU, and is a tighter and
+      more useful bound than "some unknown ideal allocation" would have been.
+      It is a different quantity, and the paper must say which one it reports.
     """
     def priority(self, block, ctx):
-        return 10.0 if block.meta.get("helps") else float("-inf")
+        raise NotImplementedError(
+            "ORACLE cannot be run as an allocation policy: 'helps' is not "
+            "computable without 2^|blocks| forward passes per query. Use "
+            "report.py::policy_selection_oracle, which bounds what a perfect "
+            "router over the implemented policies could achieve.")
 
     def reason(self, block, ctx):
-        return "oracle: this block measurably helps this query (uses gold; not a method)"
+        return "oracle: uses gold; not a method"
 
 
 POLICIES: dict[str, Policy] = {
@@ -311,11 +326,17 @@ POLICIES: dict[str, Policy] = {
     "S5_semantic":  SemanticSpecificity("S5_semantic", "semantic specificity",
                                         "★ how specific the label's meaning is",
                                         level="L5"),
-    "ORACLE":       Oracle("ORACLE", "oracle", "★ the ceiling, uses gold"),
+    # ⚠️ ORACLE is deliberately ABSENT — see the Oracle docstring. It kept no
+    #    blocks and spent 0 tokens, so evaluating it burned GPU to re-measure
+    #    the B=0 floor. The ceiling is computed post hoc by
+    #    report.py::policy_selection_oracle at no additional cost.
 }
 
 # ⚠️ S5 is GATED. `profile_specificity.py` must pass before it is reported.
 GATED = {"S5_semantic"}
+
+# kept so that older result files and notebooks referring to ORACLE still parse
+RETIRED = {"ORACLE": "replaced by report.policy_selection_oracle (post hoc)"}
 
 
 # ---------------------------------------------------------------------------

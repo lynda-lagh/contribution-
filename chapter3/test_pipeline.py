@@ -402,8 +402,10 @@ def main() -> None:
             (results / f"ch3_SYNTH-ind_{pid}_B{budget}_{direction}_{tag}.json"
              ).write_text(json.dumps(res), encoding="utf-8")
 
+        # ORACLE is retired: it kept no blocks and reproduced the B=0 floor.
+        # The ceiling is now report.policy_selection_oracle, computed post hoc.
         for pid, boost in (("S0_uniform", 0), ("R_random", 0),
-                           ("S4_instance", 6), ("ORACLE", 12)):
+                           ("S1_property", 3), ("S4_instance", 6)):
             emit(pid, 120, "tail", "tuned", boost)
             emit(pid, 120, "tail", "untuned", max(0, boost - 3))
             emit(pid, 60, "tail", "tuned", boost // 2)
@@ -430,7 +432,11 @@ def main() -> None:
         check("report runs the paired bootstrap",
               "paired" in out and ("p<" in out or "p=" in out), "")
         check("report reaches a headline verdict", "➤" in out, "")
-        check("report shows the ORACLE ceiling", "ORACLE CEILING" in out, "")
+        check("report shows the post-hoc ceiling",
+              "CEILING — best policy PER QUERY" in out, "")
+        check("★ ceiling is above every single policy",
+              "over best single policy +" in out,
+              "a routing bound that is below its own policies is a bug")
         check("report compares tuned vs untuned", "WITHOUT FINE-TUNING" in out, "")
         check("report compares both directions", "BOTH DIRECTIONS" in out, "")
         check("report flags the missing confusion matrix",

@@ -75,6 +75,53 @@ def rows_of(d: dict) -> list:
     return d.get("rows", [])
 
 
+def policy_selection_oracle(R: dict, budget: int) -> dict | None:
+    """
+    ★★ THE CEILING, computed after the fact and costing no GPU.
+
+    For each query, take the best rank achieved by ANY policy at this budget.
+    That bounds what a *perfect router over the implemented policies* could
+    reach — the most any amount of routing intelligence could buy, given the
+    policies we actually have.
+
+    ⚠️ THIS IS NOT THE ORACLE ORIGINALLY PRE-REGISTERED. That one allocated
+       using per-block knowledge of whether a block helps the query, which needs
+       2^|blocks| forward passes per query and was never computable; the policy
+       that claimed to do it kept nothing and silently reported the B=0 floor as
+       a ceiling. The bound below is tighter and honest, and the paper must name
+       which one it reports.
+
+    Also returns `best_policy_share`: how often each policy wins. A ceiling far
+    above every individual policy, with the wins spread across policies, is the
+    strongest possible argument that per-query routing is worth building.
+    """
+    cells = {p: d for (p, b), d in R.items() if b == budget and rows_of(d)}
+    if len(cells) < 2:
+        return None
+    best: dict[str, tuple[float, str]] = {}
+    for pol, d in cells.items():
+        for r in rows_of(d):
+            q, rank = r["qid"], r["rank"]
+            if q not in best or rank < best[q][0]:
+                best[q] = (rank, pol)
+    if not best:
+        return None
+    ranks = [v[0] for v in best.values()]
+    wins: dict[str, int] = {}
+    for _, p in best.values():
+        wins[p] = wins.get(p, 0) + 1
+    n = len(ranks)
+    return {
+        "MRR": sum(1.0 / r for r in ranks) / n,
+        "hits@1": sum(r <= 1 for r in ranks) / n,
+        "n": n,
+        "rr": [1.0 / r for r in ranks],
+        "qids": list(best.keys()),
+        "best_policy_share": {k: v / n for k, v in
+                              sorted(wins.items(), key=lambda kv: -kv[1])},
+    }
+
+
 def mrr_of(d: dict) -> float:
     return d["ranking"]["MRR"]
 
@@ -227,8 +274,38 @@ def main() -> None:
                   f"A true effect\n       smaller than that would not have shown "
                   f"up — say so rather than\n       claiming equivalence.")
 
-    # ---- ORACLE ------------------------------------------------------------
+    # ---- ★ the achievable ceiling, computed post hoc ------------------------
+    print(f"\n{'='*100}\n★★ CEILING — best policy PER QUERY (a perfect router over "
+          f"these policies)\n{'='*100}")
+    print("  Not the pre-registered oracle: that one needed per-block knowledge of")
+    print("  what helps each query and was never computable. This bounds routing.\n")
+    for b in buds:
+        o = policy_selection_oracle(R, b)
+        s0 = R.get(("S0_uniform", b))
+        if not o:
+            continue
+        best_single = max((mrr_of(d) for (p, bb), d in R.items()
+                           if bb == b and p != "S0_uniform"), default=None)
+        line = f"  B={b:<4d} ceiling MRR {o['MRR']:.4f}"
+        if s0:
+            line += f"   over S0 {o['MRR']-mrr_of(s0):+.4f}"
+        if best_single is not None:
+            line += f"   over best single policy {o['MRR']-best_single:+.4f}"
+        print(line)
+        share = "  ".join(f"{k.split('_')[0]} {v:.0%}"
+                          for k, v in list(o["best_policy_share"].items())[:6])
+        print(f"        wins per policy: {share}")
+    print("\n  ★ A ceiling well above every single policy, with wins SPREAD across")
+    print("    policies, is the case for per-query routing. A ceiling close to the")
+    print("    best single policy says one fixed rule is already enough.")
+
+    # ---- legacy ORACLE cells, if any survive from an earlier run ------------
     orc = {b: R[("ORACLE", b)] for b in buds if ("ORACLE", b) in R}
+    if orc and all(d["cost"]["mean_context_tokens"] == 0 for d in orc.values()):
+        print("\n  ⚠️ legacy ORACLE cells found with 0 context tokens. That policy "
+              "kept no\n     blocks, so those rows repeat the B=0 floor and are "
+              "excluded here.")
+        orc = {}
     if orc:
         print(f"\n{'='*100}\n★ ORACLE CEILING (uses gold; not a method)\n{'='*100}")
         for b, d in sorted(orc.items()):
