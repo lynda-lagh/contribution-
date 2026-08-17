@@ -113,7 +113,14 @@ def run(cmd: str | list, name: str | None = None, est: str | None = None,
     #    command shows nothing for minutes and looks hung — while stderr, being
     #    unbuffered, prints warnings immediately and makes the silence look like
     #    a crash. PYTHONUNBUFFERED makes progress appear as it happens.
+    #
+    # ⚠️ ONE GPU, ALWAYS. Kaggle's "T4 x2" exposes two devices, and HF Trainer
+    #    silently wraps the model in DataParallel — which breaks autocast for
+    #    fp32 adapters over an fp16 base. src/train/sft.py refuses to run in
+    #    that state rather than produce quietly wrong gradients, so every
+    #    subprocess is pinned here instead of relying on the caller.
     env = dict(os.environ, PYTHONUNBUFFERED="1")
+    env.setdefault("CUDA_VISIBLE_DEVICES", "0")
 
     with step(label[:70], est) as s:
         print("$", cmd if shell else " ".join(cmd), flush=True)

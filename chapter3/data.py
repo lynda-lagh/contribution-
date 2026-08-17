@@ -43,7 +43,7 @@ from .sources import GraphIndex, assert_no_leak, candidate_blocks
 
 def build_one(kg, queries, policy, budget, rel_desc, types, count,
               n_neighbours=5, n_demos=3, direction="tail", index=None,
-              check_leaks=True):
+              check_leaks=True, negatives=0, rng=None, true_set=None):
     """
     One (policy, budget, direction) cell -> prompts + the allocation audit trail.
 
@@ -100,6 +100,33 @@ def build_one(kg, queries, policy, budget, rel_desc, types, count,
 
         records.append({"instruction": prefix + gold_surface + suffix,
                         "input": "", "output": YES})
+
+        # ★★ NEGATIVES. Without them the model only ever sees `YES` and learns to
+        #    assert everything; ranking then sorts by a P(Yes) that is ~1.0 for
+        #    every candidate, so the order is arbitrary and the whole grid
+        #    measures noise. Chapter 1's builder emits 1 positive + 1 negative
+        #    for exactly this reason; this path omitted it.
+        #
+        #    ⚠️ The CONTEXT IS UNCHANGED between the pair. Only the candidate
+        #       differs, so the example teaches "does this tail fit this context"
+        #       rather than "is this context well-formed".
+        if negatives:
+            from src.data.prompts import NO
+            ents = index.entities_list
+            for _ in range(negatives):
+                for _try in range(50):
+                    cand = rng.choice(ents)
+                    if cand == gold:
+                        continue
+                    trip = ((t.head, t.relation, cand) if direction == "tail"
+                            else (cand, t.relation, t.tail))
+                    if trip in true_set:        # a true fact is not a negative
+                        continue
+                    break
+                else:
+                    continue
+                records.append({"instruction": prefix + kg.ent2txt.get(cand, cand)
+                                + suffix, "input": "", "output": NO})
         qrows.append({"head": t.head, "relation": t.relation, "tail": t.tail,
                       "direction": direction,
                       "prefix": prefix, "suffix": suffix,
@@ -133,6 +160,11 @@ def main() -> None:
                     help="★ CATS and RealKGC report both; one direction looks cherry-picked")
     ap.add_argument("--train-mixed", action="store_true",
                     help="★ training set with random policy+budget per example")
+    ap.add_argument("--train-size", type=int, default=0,
+                    help="training triples; 0 = all of them. NOT tied to --limit")
+    ap.add_argument("--train-negatives", type=int, default=1,
+                    help="★ negatives per positive. 0 makes the model answer "
+                         "Yes to everything and destroys ranking")
     ap.add_argument("--no-inference-graph", action="store_true",
                     help="⚠️ neighbours from train only. In the inductive setting "
                          "this leaves unseen entities with NO neighbours and "
@@ -185,8 +217,13 @@ def main() -> None:
     # ---------------------------------------------------- the shared model set
     if ns.train_mixed:
         rng = random.Random(ns.seed)
-        pols = [p for k, p in POLICIES.items() if k != "ORACLE"]
-        train_q = kg.train[: ns.limit * 5]
+        pols = list(POLICIES.values())
+        # ⚠️ training size is NOT derived from --limit. --limit sizes the
+        #    EVALUATION query set; deriving training from it silently trained on
+        #    1,500 of the 5,410 available triples.
+        n_train = ns.train_size if ns.train_size > 0 else len(kg.train)
+        train_q = kg.train[:n_train]
+        true_set = kg.all_true()
         recs = []
         for t in train_q:
             p = rng.choice(pols)
@@ -196,16 +233,30 @@ def main() -> None:
             #   would show up as a direction effect that is really a training gap
             d_ = rng.choice(dirs) if len(dirs) > 1 else dirs[0]
             r, _, _ = build_one(kg, [t], p, b, rel_desc, types, count,
-                                direction=d_, index=index)
+                                direction=d_, index=index,
+                                negatives=ns.train_negatives, rng=rng,
+                                true_set=true_set)
             recs.extend(r)
         d = out_root / "mixed"
         d.mkdir(parents=True, exist_ok=True)
         (d / "train_instructions.json").write_text(json.dumps(recs, indent=1),
                                                    encoding="utf-8")
-        print(f"[data] mixed training set: {len(recs):,} examples "
-              f"(random policy + budget + direction per example) -> {d}")
+
+        from src.data.prompts import YES
+        n_pos = sum(1 for r in recs if r["output"] == YES)
+        n_neg = len(recs) - n_pos
+        print(f"\n[data] mixed training set -> {d}")
+        print(f"   {len(recs):,} examples from {len(train_q):,} triples")
+        print(f"   {n_pos:,} positive · {n_neg:,} negative "
+              f"({n_neg/max(1,len(recs)):.0%})")
+        print("   random policy + budget + direction per example")
         print("   ★ P28's context-corruption idea repurposed: the model sees many")
         print("     context subsets, so no policy is out of distribution later.")
+        if n_neg == 0:
+            raise SystemExit(
+                "✋ NO NEGATIVES. A model trained only on 'Yes' asserts everything,\n"
+                "   and ranking sorts by P(Yes), so every candidate scores ~1.0 and\n"
+                "   the order is arbitrary. Pass --train-negatives 1 (the default).")
         return
 
     # ------------------------------------------------------ the evaluation set

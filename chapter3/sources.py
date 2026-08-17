@@ -240,6 +240,8 @@ class GraphIndex:
             self.by_relation[t.relation].append(t)
 
         self._ent_cache: dict[str, float] = {}
+        # negative sampling draws from here; materialised once, not per call
+        self.entities_list: list[str] = list(kg.ent2txt)
 
     def type_entropy(self, relation: str, types: dict[str, str]) -> float:
         """Entropy of the relation's range over entity types. S2 allocates on it."""
