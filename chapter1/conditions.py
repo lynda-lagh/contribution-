@@ -192,9 +192,34 @@ Report '% of the gap recovered', not raw accuracy:
 TYPE_TAG_FLOOR = {
     # measured on the TYPE-CONSISTENT test set. Re-run check_type_leak after ANY
     # change to test.tsv — this number is only valid for the set it was measured on.
-    "YAGO3-10": 0.513,
-    "WN11": None,           # not yet measured; falls back to 0.5
+    "YAGO3-10": 0.513,      # clean: separation 0.026 (p_match 0.5248 pos / 0.4988 neg)
+
+    # ✋ MEASURED 2026-08-16, and it is a MATERIAL LEAK — do NOT run C/D/E/G on
+    #    WN11 until the test negatives are regenerated type-consistently.
+    #
+    #        tag_only_accuracy   0.5679          (YAGO3-10 after the fix: 0.513)
+    #        p_match | positive  0.2607
+    #        p_match | negative  0.1250
+    #        separation          0.1357          (YAGO3-10: 0.026)
+    #
+    #    A one-line rule — "the tail's type tag names the query relation, so
+    #    answer Yes" — scores 56.8% on WN11's current test set. Any typed
+    #    condition would inherit that for free and it would be reported as the
+    #    model using type information.
+    #
+    #    ★ Nothing is contaminated yet: only A and B have been run on WN11, and
+    #      neither shows types. This is a gate on future runs, not a retraction.
+    #
+    #        python -m chapter1.make_test_negatives --dataset WN11 \
+    #            --strategy type_consistent --regenerate
+    #        python -m chapter1.check_type_leak --dataset WN11     # expect < 0.55
+    "WN11": 0.568,
 }
+
+# ✋ Datasets whose typed conditions are BLOCKED until negatives are regenerated.
+#    0.55 is the threshold: above it, the trivial rule explains too much of any
+#    typed result to separate it from a learned one.
+TYPE_LEAK_BLOCKED = {ds for ds, v in TYPE_TAG_FLOOR.items() if v and v >= 0.55}
 
 
 def floor_for(cond_id: str, dataset: str) -> float:
@@ -202,6 +227,25 @@ def floor_for(cond_id: str, dataset: str) -> float:
     if not CONDITIONS[cond_id].types:
         return 0.5
     return TYPE_TAG_FLOOR.get(dataset) or 0.5
+
+
+def check_type_gate(cond_id: str, dataset: str) -> None:
+    """
+    ✋ Refuse to run a typed condition on a dataset with a material tag leak.
+
+    Called before training. Raising here costs a few seconds; not raising costs
+    a 40-minute run whose number cannot be interpreted — which is exactly what
+    happened on YAGO3-10 before the negatives were regenerated.
+    """
+    if CONDITIONS[cond_id].types and dataset in TYPE_LEAK_BLOCKED:
+        raise SystemExit(
+            f"✋ condition {cond_id} shows type tags, but {dataset} has a MATERIAL "
+            f"type-tag leak (tag-only rule scores {TYPE_TAG_FLOOR[dataset]:.3f}).\n"
+            f"   A trivial one-line heuristic would explain most of the result.\n\n"
+            f"   python -m chapter1.make_test_negatives --dataset {dataset} "
+            f"--strategy type_consistent --regenerate\n"
+            f"   python -m chapter1.check_type_leak --dataset {dataset}\n\n"
+            f"   Then update TYPE_TAG_FLOOR['{dataset}'] with the new number.")
 
 
 INTERPRETATION = {

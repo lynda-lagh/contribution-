@@ -12,7 +12,7 @@ relation text descriptions as in [KG-BERT]".
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -31,6 +31,11 @@ class KG:
     rel2txt: dict[str, str]
     train: list[Triple]
     test: list[Triple]
+    # ★ Optional. Present only when the dataset ships a valid.tsv (CATS splits do).
+    #   The FILTERED ranking protocol must filter against train + valid + test:
+    #   a triple that is true but happens to live in valid is not a negative, and
+    #   scoring it as one silently penalises every model equally but wrongly.
+    valid: list[Triple] = field(default_factory=list)
 
     @property
     def entities(self) -> list[str]:
@@ -40,12 +45,18 @@ class KG:
     def relations(self) -> list[str]:
         return list(self.rel2txt.keys())
 
+    def all_true(self) -> set[tuple[str, str, str]]:
+        """★ Every triple known to be true, for the filtered protocol."""
+        return {(t.head, t.relation, t.tail)
+                for t in (*self.train, *self.valid, *self.test)}
+
     def describe(self) -> dict:
         return {
             "dataset": self.name,
             "n_entities": len(self.ent2txt),
             "n_relations": len(self.rel2txt),
             "n_train": len(self.train),
+            "n_valid": len(self.valid),
             "n_test": len(self.test),
         }
 
@@ -80,12 +91,19 @@ def load_kg(dataset: str, root: str | Path = "data") -> KG:
         raise FileNotFoundError(
             f"{d} is missing {missing}. Download from github.com/yao8839836/kg-llm/tree/main/data"
         )
+    # ★ valid.tsv is optional: KG-LLM's WN11/YAGO3-10 layout has none, the CATS
+    #   inductive splits do. Loaded when present so `all_true()` can filter
+    #   against it; absent, the protocol degrades to train+test and says so.
+    vp = d / "valid.tsv"
+    valid = _read_triples(vp, has_label=True) if vp.exists() else []
+
     return KG(
         name=dataset,
         ent2txt=_read_map(d / "entity2text.txt"),
         rel2txt=_read_map(d / "relation2text.txt"),
         train=_read_triples(d / "train.tsv", has_label=False),
         test=_read_triples(d / "test.tsv", has_label=True),
+        valid=valid,
     )
 
 
@@ -105,6 +123,7 @@ def anonymise(kg: KG) -> KG:
         rel2txt=dict(kg.rel2txt),
         train=list(kg.train),
         test=list(kg.test),
+        valid=list(kg.valid),
     )
 
 
@@ -163,4 +182,5 @@ def shuffle_surface_forms(kg: KG, seed: int = 42) -> KG:
         rel2txt=dict(kg.rel2txt),
         train=list(kg.train),
         test=list(kg.test),
+        valid=list(kg.valid),
     )
