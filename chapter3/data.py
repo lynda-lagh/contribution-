@@ -230,29 +230,106 @@ def main() -> None:
                 seen_prompts.setdefault((direction, budget), {})[pid] = tuple(
                     q["prefix"] + q["suffix"] for q in qrows[:200])
 
-    # ⚠️ the guard that Chapter 1 needed and did not have
+    # ⚠️ the guard that Chapter 1 needed and did not have.
+    #
+    # ★ It reports, it does not abort. A collision at B=30 says nothing about
+    #   B=120: if the smallest budget can only afford one block then every
+    #   policy keeps that block and the prompts coincide BY ARITHMETIC. Killing
+    #   the whole build there would discard the budgets that do discriminate.
+    #   We therefore mark each cell informative or not, and fail only if NONE is.
     if ns.verify:
-        print()
-        for (direction, budget), per in seen_prompts.items():
+        print(f"\n{'='*74}\n[guard] DO THE POLICIES ACTUALLY DIFFER?\n{'='*74}")
+        informative, dead = [], []
+        for (direction, budget), per in sorted(seen_prompts.items()):
             if budget == 0:
-                print(f"[guard] B=0 {direction}: skipped — the empty-context floor is "
-                      f"identical for every policy BY DEFINITION")
+                print(f"  B={budget:<4d} {direction:4s}  — floor, identical by definition")
                 continue
             uniq = len(set(per.values()))
-            ok = uniq == len(per)
-            print(f"[guard] B={budget} {direction}: {uniq}/{len(per)} policies produce "
-                  f"DISTINCT prompts {'✓' if ok else '✗'}")
-            if not ok:
-                dupes = {}
-                for k, v in per.items():
-                    dupes.setdefault(v, []).append(k)
-                for v, ks in dupes.items():
-                    if len(ks) > 1:
-                        print(f"   ✗ IDENTICAL: {ks} — this cell measures nothing")
-                raise SystemExit(
-                    "policies produced identical prompts. Either the budget is too "
-                    "large (everything fits, so priority never matters) or the "
-                    "policies do not differ on this data.")
+            # ★ A cell is informative when the policies SEPARATE, not when every
+            #   pair happens to differ. Two policies keyed on features that are
+            #   constant on this graph will always coincide; that is a finding
+            #   about the graph (pre-registered as "S3 ~= S1"), not a broken run.
+            #   The cell only dies when ALL policies collapse to one prompt.
+            ok = uniq > 1
+            (informative if ok else dead).append((direction, budget))
+            print(f"  B={budget:<4d} {direction:4s}  {uniq}/{len(per)} distinct "
+                  f"{'✓ informative' if ok else '✗ ALL IDENTICAL — measures nothing'}")
+            groups = {}
+            for k, v in per.items():
+                groups.setdefault(v, []).append(k)
+            for v, ks in groups.items():
+                if len(ks) > 1:
+                    print(f"        ≡ {', '.join(ks)}   (same feature on this graph)")
+
+        # ---- block inventory: what could be allocated, and what fits -------
+        t = queries[0]
+        blocks = candidate_blocks(kg, t.head, t.relation, rel_desc, types,
+                                  count, index=index,
+                                  exclude=(t.head, t.relation, t.tail))
+        print(f"\n  BLOCK INVENTORY for one query ({t.head}, {t.relation}, ?):")
+        if not blocks:
+            print("    (none at all — nothing can be allocated)")
+        for b in sorted(blocks, key=lambda b: b.tokens):
+            fits = ", ".join(str(x) for x in ns.budget if b.tokens <= x) or "none"
+            print(f"    {b.kind:22s} {b.tokens:>5d} tok   fits in B = {fits}")
+
+        # ---- ★ FEATURE VARIANCE: why two policies can never disagree -------
+        #  A policy routes on a feature. If that feature is constant across the
+        #  graph the policy has nothing to decide, and any two policies keyed on
+        #  constant features produce the same ordering. This is the same defect
+        #  that made Chapter 1's first quality-band router flat by construction
+        #  (95.7% of entities in one band), so it is measured here rather than
+        #  discovered after a GPU sweep.
+        import statistics as _st
+        feats = {"has_description": [], "label_words": [], "type_entropy": [],
+                 "degree": []}
+        for q in queries[:400]:
+            bl = candidate_blocks(kg, q.head, q.relation, rel_desc, types, count,
+                                  index=index,
+                                  exclude=(q.head, q.relation, q.tail))
+            if not bl:
+                continue
+            m = bl[0].meta
+            for k in feats:
+                if m.get(k) is not None:
+                    feats[k].append(m[k])
+
+        print(f"\n  FEATURE VARIANCE across {len(queries[:400])} queries "
+              f"(a constant feature cannot route):")
+        POLICY_OF = {"has_description": "S1_property", "label_words": "S3_quality",
+                     "type_entropy": "S2_type", "degree": "(diagnostic only)"}
+        for k, vals in feats.items():
+            if not vals:
+                print(f"    {k:18s} — absent"); continue
+            if all(isinstance(v, bool) for v in vals):
+                rate = sum(vals) / len(vals)
+                flat = rate > 0.97 or rate < 0.03
+                print(f"    {k:18s} {rate:6.1%} true      "
+                      f"{'✗ CONSTANT -> ' + POLICY_OF[k] + ' cannot decide' if flat else '✓ splits'}")
+            else:
+                lo, hi = min(vals), max(vals)
+                sd = _st.pstdev(vals) if len(vals) > 1 else 0.0
+                flat = sd < 1e-6 or lo == hi
+                print(f"    {k:18s} min {lo:<8.3g} max {hi:<8.3g} sd {sd:<8.3g}"
+                      f"{'  ✗ CONSTANT -> ' + POLICY_OF[k] + ' cannot decide' if flat else '  ✓ varies'}")
+        print(f"\n    ★ Two policies keyed on constant features WILL coincide. Report")
+        print(f"      that as a property of the graph — it is pre-registered in")
+        print(f"      policies.INTERPRETATION as \"S3 ~= S1\" — not as a failed run.")
+
+        print(f"\n  {len(informative)} informative cell(s), {len(dead)} not.")
+        if not informative:
+            raise SystemExit(
+                "✋ NO budget produces distinct prompts, so nothing in this grid can\n"
+                "   be measured. Either the blocks are too few (check the inventory\n"
+                "   above) or every budget is too small to force a choice. Raise the\n"
+                "   budgets, or add block kinds, before spending GPU.")
+        print(f"  ★ report results for the informative budgets and state that the")
+        print(f"    others could not discriminate — that is a finding about cost,")
+        print(f"    not a failed run.")
+        (out_root / "informative_cells.json").write_text(
+            json.dumps({"informative": [[d, b] for d, b in informative],
+                        "not_informative": [[d, b] for d, b in dead]}, indent=1),
+            encoding="utf-8")
 
 
 if __name__ == "__main__":
