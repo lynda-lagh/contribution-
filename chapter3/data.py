@@ -211,9 +211,25 @@ def main() -> None:
     # ------------------------------------------------------ the evaluation set
     pols = list(POLICIES) if ns.all else ns.policy
     seen_prompts = {}
+
+    # ★ progress. 8 policies x 4 budgets x 2 directions = 64 cells, each over
+    #   every query, and the real tokeniser is called per block. Without a
+    #   counter this loop is several silent minutes and looks like a hang.
+    import time as _t
+    total = len(dirs) * len(ns.budget) * len(pols)
+    done_n, t0 = 0, _t.time()
+    print(f"\n[data] building {total} cells "
+          f"({len(pols)} policies x {len(ns.budget)} budgets x "
+          f"{len(dirs)} direction(s)) over {len(queries):,} queries", flush=True)
+
     for direction in dirs:
         for budget in ns.budget:
             for pid in pols:
+                done_n += 1
+                el = _t.time() - t0
+                eta = (el / max(1, done_n - 1) * (total - done_n + 1)) if done_n > 1 else 0
+                print(f"  [{done_n:>2}/{total}] {pid:14s} B={budget:<4d} {direction:4s}"
+                      f"   elapsed {el/60:4.1f}m  eta {eta/60:4.1f}m", flush=True)
                 recs, qrows, allocs = build_one(kg, queries, POLICIES[pid], budget,
                                                 rel_desc, types, count,
                                                 direction=direction, index=index)
@@ -225,8 +241,8 @@ def main() -> None:
 
                 spent = [q["context_tokens"] for q in qrows]
                 mean = sum(spent) / max(1, len(spent))
-                print(f"  {pid:14s} B={budget:<4d} {direction:4s} mean {mean:6.1f} tok "
-                      f"({mean/budget if budget else 0:5.1%} of budget)  -> {d.name}")
+                print(f"        spent {mean:6.1f} tok "
+                      f"({mean/budget if budget else 0:5.1%} of budget)", flush=True)
                 seen_prompts.setdefault((direction, budget), {})[pid] = tuple(
                     q["prefix"] + q["suffix"] for q in qrows[:200])
 

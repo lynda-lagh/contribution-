@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import glob
 import json
+import os
 import re
 import subprocess
 import sys
@@ -106,9 +107,17 @@ def run(cmd: str | list, name: str | None = None, est: str | None = None,
     """
     shell = isinstance(cmd, str)
     label = name or (cmd if shell else " ".join(cmd))
+
+    # ⚠️ UNBUFFERED, ALWAYS. A subprocess writing to a pipe (which is what a
+    #    notebook gives it) block-buffers stdout at ~8 KB, so a long-running
+    #    command shows nothing for minutes and looks hung — while stderr, being
+    #    unbuffered, prints warnings immediately and makes the silence look like
+    #    a crash. PYTHONUNBUFFERED makes progress appear as it happens.
+    env = dict(os.environ, PYTHONUNBUFFERED="1")
+
     with step(label[:70], est) as s:
         print("$", cmd if shell else " ".join(cmd), flush=True)
-        rc = subprocess.call(cmd, shell=shell)
+        rc = subprocess.call(cmd, shell=shell, env=env)
         if rc != 0:
             s.failed = True
             print(f"  ✘ exit code {rc}", flush=True)
