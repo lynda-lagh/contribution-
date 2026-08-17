@@ -69,6 +69,32 @@ def blocks_of(rows, n: int):
         yield rows[i:i + n]
 
 
+def detect_direction(rank_file: Path, n_way: int) -> str | None:
+    """
+    ★ Which slot does this file vary? Determined from the DATA, never the name.
+
+    ⚠️ CATS's filenames are the opposite of the obvious reading:
+
+        ranking_head.txt   head FIXED, tails vary   -> tail prediction
+        ranking_tail.txt   tail FIXED, heads vary   -> head prediction
+
+    Trusting the name inverted every block, so the consistency check rejected
+    all of them and the candidate files were written with zero queries — a
+    silent, total failure that looked like a successful conversion. Detecting
+    the varying slot cannot make that mistake.
+    """
+    rows = read_triples(rank_file)
+    if len(rows) < n_way:
+        return None
+    blk = rows[:n_way]
+    heads, tails = {h for h, _, _ in blk}, {t for _, _, t in blk}
+    if len(heads) == 1 and len(tails) > 1:
+        return "tail"          # head anchored, tail is the prediction
+    if len(tails) == 1 and len(heads) > 1:
+        return "head"
+    return None
+
+
 def convert_ranking(rank_file: Path, queries, direction: str, n_way: int):
     """
     CATS stores `n_way` consecutive candidate triples per query. Returns rows in
@@ -188,10 +214,18 @@ def main() -> None:
 
     # ---- ranking candidates -------------------------------------------------
     print(f"\n  CANDIDATE SETS (CATS's own, {ns.n_way}-way)")
-    for direction, fname in (("tail", "ranking_tail.txt"), ("head", "ranking_head.txt")):
-        rows, rep = convert_ranking(src / fname, test, direction, ns.n_way)
+    for fname in ("ranking_head.txt", "ranking_tail.txt"):
+        f = src / fname
+        if not f.exists():
+            print(f"    {fname} absent — chapter3.candidates will sample instead")
+            continue
+        direction = detect_direction(f, ns.n_way)
+        if direction is None:
+            print(f"    ⚠️ {fname}: could not determine which slot varies — skipped")
+            continue
+        print(f"    {fname:20s} varies the {direction.upper()} -> {direction} prediction")
+        rows, rep = convert_ranking(f, test, direction, ns.n_way)
         if rep.get("status") == "missing":
-            print(f"    {direction:5s} {fname} absent — chapter3.candidates will sample instead")
             continue
         dest = out / f"candidates_{direction}_{ns.n_way}way_s{ns.seed}.json"
         dest.write_text(json.dumps(rows, indent=1), encoding="utf-8")

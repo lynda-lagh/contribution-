@@ -253,17 +253,44 @@ class GraphIndex:
 
     def neighbours_of(self, entity: str, exclude: tuple | None, k: int):
         """
-        Up to `k` neighbouring facts, with the query triple removed.
+        Up to `k` neighbouring facts, with the answer removed.
 
-        `exclude` is the (head, relation, tail) being asked about. It is checked
-        in both orientations because the index stores each edge twice.
+        `exclude` is the (head, relation, tail) being asked about.
+
+        ⚠️⚠️ WHY EXACT-TRIPLE EXCLUSION IS NOT ENOUGH — THE INVERSE-RELATION LEAK
+        WN18RR contains symmetric and inverse relation pairs: for
+        `_derivationally_related_form` the graph holds BOTH (a, r, b) and
+        (b, r, a). Removing only the literal query triple therefore leaves its
+        mirror image in the neighbour list, and the context states the answer.
+
+        The rule below is stronger and cannot be evaded by storage direction,
+        duplicate rows, or an inverse edge: **no neighbour reached from the
+        anchor by the QUERY RELATION may be the gold entity**, whichever way
+        that edge happens to be stored.
+
+        ★ This is worth reporting rather than merely fixing. It means a system
+          that supplies "neighbouring facts" as context on WN18RR, without this
+          filter, is partly reading the answer off its own prompt — and none of
+          the context-supplying papers we surveyed describes such a filter.
         """
         out = []
+        if exclude is None:
+            for r, other, d in self.nbrs.get(entity, ()):
+                out.append((r, other, d))
+                if len(out) >= k:
+                    break
+            return out
+
+        h, qr, t = exclude
+        gold = t if entity == h else h          # the entity being predicted
+        banned = {(h, qr, t), (t, qr, h)}       # the triple and its mirror
+
         for r, other, d in self.nbrs.get(entity, ()):
-            if exclude is not None:
-                trip = (entity, r, other) if d == "out" else (other, r, entity)
-                if trip == exclude:
-                    continue                       # ★ never show the answer
+            trip = (entity, r, other) if d == "out" else (other, r, entity)
+            if trip in banned:
+                continue
+            if r == qr and other == gold:       # ★ the catch-all
+                continue
             out.append((r, other, d))
             if len(out) >= k:
                 break
@@ -352,17 +379,26 @@ def assert_no_leak(blocks, kg, head: str, relation: str, gold: str) -> None:
     """
     gold_txt = kg.ent2txt.get(gold, gold)
     rel_txt = kg.rel2txt.get(relation, relation)
+
+    # both renderings produced by candidate_blocks:
+    #   outgoing edge   "<relation> <entity>"
+    #   incoming edge   "is <relation> of <entity>"
+    forbidden = (f"{rel_txt} {gold_txt}", f"is {rel_txt} of {gold_txt}")
+
     for b in blocks:
         if b.kind != "neighbours":
             continue
         for seg in b.text.split(";"):
-            s = seg.strip()
-            if s.startswith(f"{rel_txt} ") and s[len(rel_txt) + 1:].strip() == gold_txt:
+            s = " ".join(seg.split())
+            if s in forbidden:
                 raise AssertionError(
                     f"★✋ CONTEXT LEAK: the neighbour block for {head} contains "
-                    f"'{rel_txt} {gold_txt}', which IS the answer to "
+                    f"'{s[:70]}', which IS the answer to "
                     f"({head}, {relation}, ?). Every result computed with this "
-                    f"context is invalid.")
+                    f"context is invalid.\n"
+                    f"   On WN18RR this is normally the INVERSE-RELATION leak: "
+                    f"the graph holds both (a,r,b) and (b,r,a), so removing only "
+                    f"the literal query triple leaves its mirror.")
 
 
 def main() -> None:
