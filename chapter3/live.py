@@ -69,10 +69,16 @@ class step:
 
         with step("train shared model", est="35 min"):
             ...
+
+    ⚠️ `failed` exists because a subprocess returning a non-zero code is NOT an
+       exception. Without it a step whose command died still printed a tick, so
+       the banner said "✔ done" directly under "✘ exit code 1". A progress
+       display that reports success for a failed command is worse than none.
     """
 
     def __init__(self, name: str, est: str | None = None, width: int = 74):
         self.name, self.est, self.width = name, est, width
+        self.failed = False
 
     def __enter__(self):
         self.t0 = time.time()
@@ -83,23 +89,33 @@ class step:
 
     def __exit__(self, exc_type, exc, tb):
         m = (time.time() - self.t0) / 60
-        if exc_type is None:
+        if exc_type is None and not self.failed:
             print(f"✔ {self.name} — done in {m:.1f} min\n", flush=True)
         else:
             print(f"✘ {self.name} — FAILED after {m:.1f} min\n", flush=True)
         return False
 
 
-def run(cmd: str | list, name: str | None = None, est: str | None = None) -> int:
-    """Run a command with its output streaming live, and time it."""
+def run(cmd: str | list, name: str | None = None, est: str | None = None,
+        check: bool = False) -> int:
+    """
+    Run a command with its output streaming live, and time it.
+
+    check=True raises SystemExit on failure. Use it wherever a later cell would
+    otherwise run on data the failed command never produced.
+    """
     shell = isinstance(cmd, str)
     label = name or (cmd if shell else " ".join(cmd))
-    with step(label[:70], est):
+    with step(label[:70], est) as s:
         print("$", cmd if shell else " ".join(cmd), flush=True)
         rc = subprocess.call(cmd, shell=shell)
         if rc != 0:
+            s.failed = True
             print(f"  ✘ exit code {rc}", flush=True)
-        return rc
+    if rc != 0 and check:
+        raise SystemExit(f"✋ '{label}' failed (exit {rc}) — stopping, because "
+                         f"everything below depends on it")
+    return rc
 
 
 # --------------------------------------------------------- reading results

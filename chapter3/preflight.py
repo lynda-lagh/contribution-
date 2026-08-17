@@ -107,10 +107,26 @@ def _sftcli():
     return importlib.util.find_spec("src.train.sft_cli") is not None
 
 
-@cap("CATS split fetcher", "scripts/fetch_cats_splits.py",
-     "there is no inductive dataset without it")
+@cap("CATS split fetcher (Drive-aware)", "scripts/fetch_cats_splits.py",
+     "the CATS repo is code-only; the data lives on Google Drive")
 def _fetch():
-    return importlib.util.find_spec("scripts.fetch_cats_splits") is not None
+    import scripts.fetch_cats_splits as f
+    return hasattr(f, "fetch_gdrive") and hasattr(f, "GDRIVE")
+
+
+@cap("CATS converter", "scripts/convert_cats.py",
+     "maps inductive_graph.txt -> valid.tsv and ranking_*.txt -> frozen candidates")
+def _convert():
+    import scripts.convert_cats as c
+    return hasattr(c, "convert_ranking")
+
+
+@cap("run() reports failure", "chapter3/live.py",
+     "a non-zero exit must not print a success tick")
+def _runfail():
+    from chapter3 import live
+    return "failed" in inspect.signature(live.step.__init__).parameters or \
+        hasattr(live.step("x"), "failed")
 
 
 def main() -> int:
