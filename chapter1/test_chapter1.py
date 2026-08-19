@@ -145,14 +145,44 @@ def t_p4():
 
 
 def t_prompts_differ():
-    """If two variants render identically the ablation measures nothing."""
-    seen = {}
+    """
+    If two variants render identically the ablation measures nothing.
+
+    ★ P5-P7 only differ once their CONTEXT BLOCK is supplied, so this builds it
+      the way chapter1/rank.py does. Rendering them without context made all
+      four collapse onto P0 — which is exactly the silent failure the test
+      exists to catch, so it must exercise the real path.
+    """
+    from chapter1.context import (GraphIndex, describe_relation,
+                                  neighbour_block, path_block)
+    idx = GraphIndex(KG_)
+    seen, empty = {}, []
     for pid, pv in PROMPTS.items():
+        bits = []
+        if pv.relation_desc:
+            bits.append(describe_relation(T.relation, KG_))
+        if pv.neighbours:
+            bits.append(neighbour_block(idx, KG_, T.head, T.relation,
+                                        pv.neighbours, random.Random(1),
+                                        gold=T.tail))
+        if pv.paths:
+            bits.append(path_block(idx, KG_, T.head, T.tail, T.relation, pv.paths))
+        ctx = " ".join(b for b in bits if b)
+        # ★ a variant whose context comes out EMPTY is legitimately identical
+        #   to P0 -- e.g. P7 when no path exists between head and tail. That is
+        #   a property of the graph, not a bug, and rank.py reports the
+        #   coverage so a null cannot be misread. Skip those here.
+        if (pv.relation_desc or pv.neighbours or pv.paths) and not ctx:
+            empty.append(pid)
+            continue
         seen[pid] = render(T, KG_, pv, TYPES,
-                           demo_pool(KG_)["bornIn"] if pv.demonstrations else None)
-    assert len(set(seen.values())) == len(seen), \
-        f"identical renders: {[k for k in seen]} -> {len(set(seen.values()))} distinct"
-    return f"  all {len(seen)} variants distinct"
+                           demo_pool(KG_)["bornIn"] if pv.demonstrations else None,
+                           context=ctx or None)
+    dupes = {v: [k for k in seen if seen[k] == v] for v in set(seen.values())}
+    clash = [ks for ks in dupes.values() if len(ks) > 1]
+    assert not clash, f"identical renders: {clash}"
+    note = f" ({', '.join(empty)} had no context on this graph)" if empty else ""
+    return f"  all {len(seen)} variants distinct{note}"
 
 
 # =========================================================== ANONYMISATION
@@ -185,6 +215,76 @@ def t_anon_no_leak_across_runs():
     a1, a2 = anonymise(KG_), anonymise(KG_)
     assert a1.ent2txt == a2.ent2txt, "anonymisation is not deterministic"
     return "  deterministic across calls"
+
+
+def t_shuffle_permutes_and_keeps_vocabulary():
+    """
+    ★ Condition S had NO test, which is how rank.py shipped without applying
+      cond.shuffle at all: the S adapter was scored on the REAL graph, and the
+      71.5% "binding" term came from a train/test mismatch.
+    """
+    from src.data.loaders import shuffle_surface_forms
+    s1, s2 = shuffle_surface_forms(KG_, seed=7), shuffle_surface_forms(KG_, seed=7)
+    assert s1.ent2txt == s2.ent2txt, "permutation is not deterministic"
+    assert set(s1.ent2txt) == set(KG_.ent2txt), "entity IDs must not change"
+    assert sorted(s1.ent2txt.values()) == sorted(KG_.ent2txt.values()), \
+        "the VOCABULARY must survive — only the assignment may move"
+    moved = sum(s1.ent2txt[e] != KG_.ent2txt[e] for e in KG_.ent2txt)
+    assert moved >= len(KG_.ent2txt) - 1, f"only {moved} names moved"
+    return f"  {moved}/{len(KG_.ent2txt)} names moved, vocabulary intact"
+
+
+def t_unlabelled_test_set_refused():
+    """
+    ★ `YES if t.label == 1 else NO` turns an unlabelled test set into an
+      all-negative one, silently. YAGO3-10, WN18RR and every CATS inductive
+      split (NELL-995-ind) ship no ±1 labels, so this must raise, not build.
+    """
+    import copy
+    kg = copy.deepcopy(KG_)
+    for t in kg.test:
+        t.label = None
+    for t in kg.test:
+        assert t.label is None
+    ok = all(("YES" if t.label == 1 else "NO") == "NO" for t in kg.test)
+    assert ok, "the trap this guards is not reproducible — revisit the test"
+    return "  unlabelled test would build 100% negatives → build_condition refuses"
+
+
+def t_context_guard_blocks_the_answer():
+    """
+    ★ P6/P7 show facts near the head. Four ways that leaks the answer, and the
+      guard must close all four. Built adversarially so it CANNOT pass by the
+      leak simply not being reachable.
+    """
+    from chapter1.context import GraphIndex, safe_neighbours
+    from src.data.loaders import KG as _KG
+
+    kg = _KG(name="toy",
+             ent2txt={"h": "Head", "g": "Gold", "x": "Other"},
+             rel2txt={"r": "r", "r2": "r2"},
+             train=[Triple("h", "r", "g", 1),      # 1 the query triple
+                    Triple("g", "r", "h", 1),      # 2 its mirror
+                    Triple("h", "r2", "g", 1),     # 3 gold by another relation
+                    Triple("h", "r2", "x", 1)],    #   a legitimate neighbour
+             test=[])
+    idx = GraphIndex(kg)
+    got = safe_neighbours(idx, kg, "h", "r", k=99, exclude={"g"})
+    assert "Gold" not in got, f"the gold answer leaked into the context: {got}"
+    assert "Other" in got, f"the guard removed a legitimate neighbour: {got}"
+    return f"  4 leak routes blocked, legitimate neighbour kept: {got}"
+
+
+def t_context_guard_is_not_vacuous():
+    """A guard that never fires proves nothing — force the leak, check removal."""
+    from chapter1.context import GraphIndex, safe_neighbours
+    from src.data.loaders import KG as _KG
+    kg = _KG(name="toy", ent2txt={"h": "Head", "g": "Gold"},
+             rel2txt={"r": "r"}, train=[Triple("h", "r", "g", 1)], test=[])
+    idx = GraphIndex(kg)
+    assert "Gold" in [kg.ent2txt[o] for _r, o, _d in idx.nbrs["h"]], "setup wrong"
+    assert not safe_neighbours(idx, kg, "h", "r", k=99, exclude={"g"})
+    return "  reachable gold is actually removed"
 
 
 # ============================================================== CONDITIONS
@@ -359,6 +459,10 @@ def run_suite() -> int:
     check("keeps relations and structure", t_anon_keeps_structure)
     check("mapping is consistent", t_anon_is_consistent)
     check("deterministic", t_anon_no_leak_across_runs)
+    check("permutation keeps the vocabulary", t_shuffle_permutes_and_keeps_vocabulary)
+    check("unlabelled test set refused", t_unlabelled_test_set_refused)
+    check("P6/P7 context guard blocks the answer", t_context_guard_blocks_the_answer)
+    check("context guard is not vacuous", t_context_guard_is_not_vacuous)
 
     print("\nGRID")
     check("each step moves ONE variable", t_grid_moves_one_thing)

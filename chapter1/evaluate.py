@@ -28,7 +28,16 @@ def _load(base: str, adapter: str | None):
         tok.pad_token = tok.eos_token
     m = AutoModelForCausalLM.from_pretrained(
         base, dtype=torch.float32, attn_implementation="sdpa").cuda()
-    if adapter and Path(adapter).exists():
+    if adapter:
+        # ★ was `if adapter and Path(adapter).exists()`, which SILENTLY returned
+        #   the untuned base model when the path was wrong -- producing untuned
+        #   numbers filed under a tuned condition. chapter1/rank.py always
+        #   raised here; the two must not disagree. Pass adapter=None to mean
+        #   "untuned", never a path that happens not to exist.
+        if not Path(adapter).exists():
+            raise FileNotFoundError(
+                f"adapter {adapter!r} does not exist. Pass adapter=None for the "
+                f"untuned baseline; refusing to report base-model numbers as tuned.")
         from peft import PeftModel
         m = PeftModel.from_pretrained(m, adapter)
     return m.eval(), tok
@@ -49,7 +58,7 @@ def _score_set(model, tok, records: list[dict], limit: int) -> dict:
     #   same rule as the parser's and the two would disagree on some records.
     conf = [p_yes for p_yes, _ in probs]                 # directional, P(Yes)
     pred = [1 if p_yes >= p_no else -1 for p_yes, p_no in probs]
-    correct = [p == l for p, l in zip(pred, labels)]
+    correct = [p == l for p, l in zip(pred, labels, strict=True)]
 
     return {
         "accuracy": float(np.mean(correct)),
@@ -108,7 +117,7 @@ def smi_block(cfg: dict, adapter: str | None, records: list[dict],
 
 
 def evaluate_both(cfg: dict, cond, dataset: str, adapter: str, limit: int = 2000,
-                  with_smi: bool = False) -> dict:
+                  with_smi: bool = False, prompt: str = "P0") -> dict:
     """
     Score `adapter` on the real AND anonymised test sets.
 
@@ -128,10 +137,32 @@ def evaluate_both(cfg: dict, cond, dataset: str, adapter: str, limit: int = 2000
     #   two changes at once:
     #     untyped conditions (A, B, S) -> real = A, anon = B
     #     typed conditions  (C, D, E, G) -> real = G, anon = C   (both carry tags)
+    #
+    #     shuffled condition (S)                 -> real = S   (see below)
+    #
+    # ★ BUG FIX. S used to resolve its "real" side to {dataset}-A, so the S
+    #   adapter -- trained on a deranged graph -- was scored on UNDAMAGED
+    #   names. That measures a train/test mismatch, not "readability kept,
+    #   binding destroyed". S must be scored on its OWN permuted test set,
+    #   which chapter1.data already writes to data/{dataset}-S/built/.
+    #
+    # ★★ BUG FIX 2. `prompt` was not a parameter at all, so a P6-TRAINED
+    #    adapter was scored on the P0 TEST SET. chapter1/data.py writes
+    #    non-P0 builds to {dataset}-{cond}-{prompt}; this function only ever
+    #    looked at {dataset}-{cond}. That is the same train/test mismatch that
+    #    corrupted condition S, one level up: the model trained with a
+    #    neighbour block and was then asked a bare question.
     typed = getattr(cond, "types", False)
-    want = {"real": [f"{dataset}-G" if typed else f"{dataset}-A", dataset],
-            "anon": [f"{dataset}-C" if typed else f"{dataset}-B",
-                     f"{dataset}-anon"]}
+    shuffled = getattr(cond, "shuffle", False)
+    sfx = "" if prompt == "P0" else f"-{prompt}"
+    if shuffled:
+        real_names = [f"{dataset}-S{sfx}"]
+    else:
+        real_names = [f"{dataset}-{'G' if typed else 'A'}{sfx}"] + (
+            [dataset] if not sfx else [])
+    want = {"real": real_names,
+            "anon": [f"{dataset}-{'C' if typed else 'B'}{sfx}"]
+                    + ([f"{dataset}-anon"] if not sfx else [])}
 
     paths, missing = {}, {}
     for key, names in want.items():
@@ -148,12 +179,13 @@ def evaluate_both(cfg: dict, cond, dataset: str, adapter: str, limit: int = 2000
             msg.append(f"  {k}: looked in " + " · ".join(str(c.parent) for c in cands))
         need = "G C" if typed else "A B"
         msg.append(f"\n  build them:  python -m chapter1.data --condition {need} "
-                   f"--dataset {dataset}")
+                   f"--dataset {dataset}" + (f" --prompt {prompt}" if sfx else ""))
         raise FileNotFoundError("\n".join(msg))
 
     print(f"  [pair] real <- {paths['real'].parent.parent.name}   "
           f"anon <- {paths['anon'].parent.parent.name}"
-          + ("   (typed pair)" if typed else ""))
+          + ("   (typed pair)" if typed else "")
+          + (f"   prompt {prompt}" if sfx else ""))
 
     model, tok = _load(base, adapter)
     out = {}
@@ -169,8 +201,17 @@ def evaluate_both(cfg: dict, cond, dataset: str, adapter: str, limit: int = 2000
     out["gap"] = out["acc_real"] - out["acc_anon"]
     out["condition"] = cond.id
     out["isolates"] = cond.isolates
+
+    # ★ BUG FIX. The denominator was hardcoded 0.5. For a TYPED condition the
+    #   chance level is not 0.5 -- it is the measured tag-only floor (0.513 on
+    #   YAGO3-10), because a one-line heuristic already reaches it. Dividing by
+    #   (acc_real - 0.5) therefore understated the memorisation share of C, D, E
+    #   and G. conditions.floor_for() has existed for this and was never called.
+    from .conditions import floor_for
+    chance = floor_for(cond.id, dataset)
+    out["chance_level"] = chance
     out["memorisation_share"] = (
-        out["gap"] / (out["acc_real"] - 0.5) if out["acc_real"] > 0.5 else None)
+        out["gap"] / (out["acc_real"] - chance) if out["acc_real"] > chance else None)
 
     # ★ seen/unseen, computed here so it is never a separate manual step
     from .analysis import calibration_by_familiarity, seen_unseen
@@ -217,6 +258,26 @@ def evaluate_both(cfg: dict, cond, dataset: str, adapter: str, limit: int = 2000
             f"SMI delta {c['delta']:+.5f}, gap {out['gap']:+.4f} — the two "
             f"instruments do NOT point the same way. Investigate before writing.")
         print(f"  [smi] {out['smi']['joint_reading']}")
+
+    # ★ QUALITATIVE SAMPLE. Before the bulky arrays are dropped, keep a small
+    #   seeded random sample of what the model actually did: the prompt it saw,
+    #   the probability it assigned, its verdict and the truth. Without this the
+    #   run leaves only aggregates behind, and "the anonymised model collapses"
+    #   stays an assertion nobody can inspect.
+    import random as _random
+    for key in ("real", "anon"):
+        blk = out[f"_{key}"]
+        recs, corr = blk.get("records") or [], blk.get("correct") or []
+        idx = _random.Random(cfg.get("seed", 42)).sample(
+            range(len(recs)), min(30, len(recs)))
+        out[f"samples_{key}"] = [{
+            "prompt": recs[i]["instruction"],
+            "label": recs[i]["label"],
+            "p_yes": blk["p_yes"][i], "p_no": blk["p_no"][i],
+            "predicted": 1 if blk["p_yes"][i] >= blk["p_no"][i] else -1,
+            "correct": bool(corr[i]) if i < len(corr) else None,
+            "seen_both": recs[i].get("seen_both"),
+        } for i in sorted(idx)]
 
     # trim the bulky arrays before saving
     for k in ("_real", "_anon"):

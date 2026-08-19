@@ -1,0 +1,375 @@
+{
+  "config": {
+    "seed": 42,
+    "model": {
+      "name": "Qwen/Qwen2.5-1.5B-Instruct",
+      "dtype": "fp16",
+      "trust_remote_code": false,
+      "pad_token": "eos",
+      "attn_implementation": "sdpa"
+    },
+    "data": {
+      "root": "data",
+      "train_triples": 10000,
+      "sampling": "stratified_by_relation",
+      "min_per_relation": 10,
+      "val_size": 1000,
+      "test_subset": 2000,
+      "negatives": "random"
+    },
+    "tokenizer": {
+      "cutoff_len": 512,
+      "padding": "dynamic",
+      "add_eos_token": true
+    },
+    "prompt": {
+      "template": "alpaca",
+      "include_entity_description": true,
+      "regenerate_entity_description": false,
+      "include_relation_description": false,
+      "include_exclusion_list": false,
+      "include_type_tag": false,
+      "include_neighbours": false
+    },
+    "peft": {
+      "method": "lora",
+      "r": 8,
+      "alpha": 16,
+      "dropout": 0.05,
+      "target_modules": [
+        "q_proj",
+        "v_proj"
+      ],
+      "bias": "none",
+      "task_type": "CAUSAL_LM",
+      "boft_block_size": 4,
+      "boft_n_butterfly_factor": 2
+    },
+    "train": {
+      "epochs": 2,
+      "learning_rate": 0.0003,
+      "micro_batch_size": 4,
+      "grad_accum_steps": 8,
+      "warmup_steps": 100,
+      "optim": "adamw_torch",
+      "gradient_checkpointing": true,
+      "torch_compile": false,
+      "fp16": true,
+      "logging_steps": 20,
+      "eval_steps": 250,
+      "save_steps": 250,
+      "save_total_limit": 2,
+      "adapter_only_checkpoint": true,
+      "report_to": "wandb"
+    },
+    "infer": {
+      "greedy": {
+        "do_sample": false,
+        "max_new_tokens": 16
+      },
+      "sampling": {
+        "do_sample": true,
+        "top_p": 0.95,
+        "top_k": 20,
+        "num_return_sequences": 10
+      }
+    },
+    "output": {
+      "results_dir": "results",
+      "adapter_dir": "checkpoints"
+    }
+  },
+  "env": {
+    "torch": "2.10.0+cu128",
+    "cuda": "12.8",
+    "n_gpu": 1,
+    "gpus": [
+      "Tesla T4"
+    ],
+    "bf16_supported": true,
+    "transformers": "4.57.6",
+    "peft": "0.19.1",
+    "trl": "1.10.0",
+    "datasets": "5.0.0",
+    "peft_env": "official",
+    "has_mora": false,
+    "has_boft": true
+  },
+  "run_name": "ch1-WN11-A",
+  "peft_method": "lora",
+  "model": "Qwen/Qwen2.5-1.5B-Instruct",
+  "n_instances": 20000,
+  "train_runtime_s": 1900.3369,
+  "train_loss": 0.04592077373856246,
+  "steps": 0.625,
+  "peak_vram_gb": 3.769376768,
+  "output_dir": "checkpoints/ch1-WN11-A",
+  "curve": {
+    "verdict": "\u26a0\ufe0f UNDERFITTING \u2014 eval_loss was still falling at the last eval. More epochs or a higher learning rate would still help; this number is a floor, not a ceiling.",
+    "final_train_loss": 0.0253,
+    "best_eval_loss": 0.02472,
+    "last_eval_loss": 0.02472,
+    "best_step": 1000,
+    "total_steps": 1000,
+    "relative_rise_after_best": 0.0,
+    "train_curve": [
+      [
+        20,
+        0.5652
+      ],
+      [
+        40,
+        0.1735
+      ],
+      [
+        60,
+        0.0746
+      ],
+      [
+        80,
+        0.0646
+      ],
+      [
+        100,
+        0.0644
+      ],
+      [
+        120,
+        0.0552
+      ],
+      [
+        140,
+        0.0554
+      ],
+      [
+        160,
+        0.0482
+      ],
+      [
+        180,
+        0.0407
+      ],
+      [
+        200,
+        0.0387
+      ],
+      [
+        220,
+        0.0442
+      ],
+      [
+        240,
+        0.0438
+      ],
+      [
+        260,
+        0.0399
+      ],
+      [
+        280,
+        0.0447
+      ],
+      [
+        300,
+        0.0417
+      ],
+      [
+        320,
+        0.0346
+      ],
+      [
+        340,
+        0.0346
+      ],
+      [
+        360,
+        0.0414
+      ],
+      [
+        380,
+        0.0367
+      ],
+      [
+        400,
+        0.0378
+      ],
+      [
+        420,
+        0.0324
+      ],
+      [
+        440,
+        0.0372
+      ],
+      [
+        460,
+        0.0267
+      ],
+      [
+        480,
+        0.0356
+      ],
+      [
+        500,
+        0.0399
+      ],
+      [
+        520,
+        0.0403
+      ],
+      [
+        540,
+        0.0357
+      ],
+      [
+        560,
+        0.0355
+      ],
+      [
+        580,
+        0.0359
+      ],
+      [
+        600,
+        0.0375
+      ],
+      [
+        620,
+        0.0281
+      ],
+      [
+        640,
+        0.0322
+      ],
+      [
+        660,
+        0.0319
+      ],
+      [
+        680,
+        0.0295
+      ],
+      [
+        700,
+        0.0283
+      ],
+      [
+        720,
+        0.0303
+      ],
+      [
+        740,
+        0.0247
+      ],
+      [
+        760,
+        0.0308
+      ],
+      [
+        780,
+        0.0274
+      ],
+      [
+        800,
+        0.0247
+      ],
+      [
+        820,
+        0.0246
+      ],
+      [
+        840,
+        0.0267
+      ],
+      [
+        860,
+        0.0273
+      ],
+      [
+        880,
+        0.0219
+      ],
+      [
+        900,
+        0.0326
+      ],
+      [
+        920,
+        0.0254
+      ],
+      [
+        940,
+        0.0243
+      ],
+      [
+        960,
+        0.0287
+      ],
+      [
+        980,
+        0.0255
+      ],
+      [
+        1000,
+        0.0235
+      ],
+      [
+        1020,
+        0.0253
+      ],
+      [
+        1040,
+        0.0293
+      ],
+      [
+        1060,
+        0.0238
+      ],
+      [
+        1080,
+        0.0267
+      ],
+      [
+        1100,
+        0.0264
+      ],
+      [
+        1120,
+        0.029
+      ],
+      [
+        1140,
+        0.0229
+      ],
+      [
+        1160,
+        0.0225
+      ],
+      [
+        1180,
+        0.0253
+      ]
+    ],
+    "eval_curve": [
+      [
+        250,
+        0.03351
+      ],
+      [
+        500,
+        0.02933
+      ],
+      [
+        750,
+        0.02689
+      ],
+      [
+        1000,
+        0.02472
+      ]
+    ]
+  },
+  "condition": "A",
+  "isolates": "baseline \u2014 KG-LLM's exact recipe",
+  "reference": "KG-LLM (ICASSP 2025): random.choice(ent_list), 1 negative per positive"
+}

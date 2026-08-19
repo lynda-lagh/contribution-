@@ -1,0 +1,38 @@
+[
+  {
+    "condition": "C",
+    "tag_only_accuracy": 0.513,
+    "p_match_positive": 0.5248,
+    "p_match_negative": 0.4988,
+    "separation": 0.026000000000000023,
+    "n": 10000,
+    "verdict": "clean"
+  },
+  {
+    "condition": "D",
+    "tag_only_accuracy": 0.513,
+    "p_match_positive": 0.5248,
+    "p_match_negative": 0.4988,
+    "separation": 0.026000000000000023,
+    "n": 10000,
+    "verdict": "clean"
+  },
+  {
+    "condition": "E",
+    "tag_only_accuracy": 0.513,
+    "p_match_positive": 0.5248,
+    "p_match_negative": 0.4988,
+    "separation": 0.026000000000000023,
+    "n": 10000,
+    "verdict": "clean"
+  },
+  {
+    "condition": "G",
+    "tag_only_accuracy": 0.513,
+    "p_match_positive": 0.5248,
+    "p_match_negative": 0.4988,
+    "separation": 0.026000000000000023,
+    "n": 10000,
+    "verdict": "clean"
+  }
+]

@@ -212,8 +212,8 @@ def main() -> None:
             #   (|p_yes - p_no| / total), which thresholded at 0.5 gives a
             #   chance-level prediction that still prints a plausible table.
             if "p_yes" in blk and "p_no" in blk:
-                tot = [(a + b) or 1.0 for a, b in zip(blk["p_yes"], blk["p_no"])]
-                conf = [a / t for a, t in zip(blk["p_yes"], tot)]
+                tot = [(a + b) or 1.0 for a, b in zip(blk["p_yes"], blk["p_no"], strict=True)]
+                conf = [a / t for a, t in zip(blk["p_yes"], tot, strict=True)]
             else:
                 print(f"\n  ⚠️ [{cond}] logs only `confidences`, which may be an "
                       f"undirected margin. Skipping — re-run the evaluation to "
@@ -225,7 +225,7 @@ def main() -> None:
                       "Rebuild with chapter1.data to add them.")
                 break
             labels = [r["label"] for r in recs[:n]]
-            correct = [(c > 0.5) == (l == 1) for c, l in zip(conf[:n], labels)]
+            correct = [(c > 0.5) == (l == 1) for c, l in zip(conf[:n], labels, strict=True)]
             su = seen_unseen(recs[:n], correct)
             print(f"\n[{cond}] seen / unseen")
             for k in ("both_seen", "one_seen", "neither"):

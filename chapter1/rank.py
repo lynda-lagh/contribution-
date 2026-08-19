@@ -84,26 +84,66 @@ def rank_queries(model, tokenizer, kg: KG, queries: list[Triple],
     pv = PROMPTS[prompt_id]
     demos = demo_pool(kg) if pv.demonstrations else None
 
+    # ── P5-P7 context, built ONCE ───────────────────────────────────────────
+    needs_ctx = pv.relation_desc or pv.neighbours or pv.paths
+    index = ctx_rng = None
+    if needs_ctx:
+        from .context import GraphIndex, assert_no_leak
+        index = GraphIndex(kg)
+        ctx_rng = random.Random(seed)
+        if pv.neighbours:
+            # ★ prove the guard before scoring 25,000 prompts with it
+            print(f"[context] leak check: {assert_no_leak(kg, index)}")
+
     # true tails per (h, r) -> the filtered setting
+    #
+    # ★ BUG FIX. This scanned kg.train ONLY, while the paper states "filtered
+    #   against train u valid u test" and src.data.loaders.all_true() exists to
+    #   do exactly that. Under-filtering lets a genuinely true tail that lives
+    #   in valid/test be sampled as a distractor, where it can outrank the gold
+    #   and be scored as an error. The bias is conservative -- it depresses MRR
+    #   in every arm -- but the protocol was not the one reported.
     known: dict[tuple[str, str], set[str]] = {}
-    for t in kg.train:
+    for t in (*kg.train, *getattr(kg, "valid", ()), *kg.test):
         known.setdefault((t.head, t.relation), set()).add(t.tail)
 
     from src.utils.progress import eta_note, track
     eta_note(len(queries) * n_way, 0.012, "forward passes")
 
     out = []
+    n_ctx = 0                    # queries that actually received a context block
     for qi, q in enumerate(track(queries, f"ranking {n_way}-way",
                                  total=len(queries), unit="query")):
         cands = sample_candidates(
             q.tail, ents, n_way, rng,
             filter_out=known.get((q.head, q.relation), set()) - {q.tail})
 
-        prompts = [
-            ALPACA_NO_INPUT.format(instruction=render(
+        # the head-side context is identical for all 50 candidates, so build
+        # it once per query rather than once per prompt
+        head_ctx = ""
+        if needs_ctx:
+            from .context import describe_relation, neighbour_block, path_block
+            bits = []
+            if pv.relation_desc:
+                bits.append(describe_relation(q.relation, kg))
+            if pv.neighbours:
+                bits.append(neighbour_block(index, kg, q.head, q.relation,
+                                            pv.neighbours, ctx_rng,
+                                            gold=q.tail))
+            head_ctx = " ".join(b for b in bits if b)
+            n_ctx += bool(head_ctx)
+
+        prompts = []
+        for c in cands:
+            ctx = head_ctx
+            if pv.paths:                       # path context is per-candidate
+                from .context import path_block
+                pb = path_block(index, kg, q.head, c, q.relation, pv.paths)
+                ctx = (ctx + " " + pb).strip() if pb else ctx
+            prompts.append(ALPACA_NO_INPUT.format(instruction=render(
                 Triple(q.head, q.relation, c, None), kg, pv, types,
-                demos.get(q.relation) if demos else None))
-            for c in cands]
+                demos.get(q.relation) if demos else None,
+                context=ctx or None)))
 
         probs = yes_no_probabilities(model, tokenizer, prompts, batch_size=batch_size)
         scores = np.array([p_yes for p_yes, _ in probs])
@@ -120,7 +160,32 @@ def rank_queries(model, tokenizer, kg: KG, queries: list[Triple],
             # margin = the confidence source Chapter 4 consumes
             "margin": float(scores[order[0]] - scores[order[1]]) if len(order) > 1 else 0.0,
             "top1": ranked[0],
+            # ★ the model's actual ANSWER LIST, not just its winner. Costs a few
+            #   hundred bytes per query and is the only way to show what the
+            #   model does rather than assert it -- KG-LLM's Table VI is
+            #   qualitative and is one of the most-read parts of that paper.
+            #   Surface forms are stored too, because under anonymisation the
+            #   ID is unreadable and under permutation it is misleading.
+            "top5": [{"id": cands[i],
+                      "text": kg.ent2txt.get(cands[i], cands[i]),
+                      "score": float(scores[i])} for i in order[:5]],
+            "gold_text": kg.ent2txt.get(q.tail, q.tail),
+            "head_text": kg.ent2txt.get(q.head, q.head),
+            "relation_text": kg.rel2txt.get(q.relation, q.relation),
         })
+
+    # ★ COVERAGE GUARD. A context variant with an empty block IS P0. If most
+    #   queries get nothing, "P7 makes no difference" is a statement about
+    #   path availability, not about whether paths help — and the two read
+    #   identically in a results table.
+    if needs_ctx:
+        cov = n_ctx / max(1, len(queries))
+        print(f"[context] {prompt_id}: {n_ctx}/{len(queries)} queries got a "
+              f"non-empty block ({cov:.1%})")
+        if cov < 0.5:
+            print(f"[context] ⚠️ under half the queries have any context, so "
+                  f"{prompt_id} is mostly IDENTICAL to P0. Report this "
+                  f"coverage next to the metric or the null is uninterpretable.")
     return out
 
 
@@ -176,6 +241,16 @@ def main() -> None:
     if cond.anonymise:
         kg = anonymise(kg)
 
+    # ★ BUG FIX. This branch was missing, so `--condition S` ranked on the
+    #   REAL graph: the S adapter (trained on a deranged world) was scored on
+    #   undamaged names. That is a train/test MISMATCH, not the permuted-name
+    #   control, and it silently corrupted m(S) and therefore the A->S
+    #   "binding" term. The seed must match chapter1/data.py's builder so the
+    #   evaluation graph carries the SAME derangement the model trained on.
+    elif getattr(cond, "shuffle", False):
+        from src.data.loaders import shuffle_surface_forms
+        kg = shuffle_surface_forms(kg, seed=cfg["seed"])
+
     types = None
     if cond.types or PROMPTS[ns.prompt].types:
         from src.routing.types import entity_types
@@ -195,8 +270,13 @@ def main() -> None:
         raise SystemExit(
             f"no positive queries in {ns.dataset}. labelled={labelled}; "
             f"first test triple label={kg.test[0].label if kg.test else 'no test set'}")
+    surface = ("anon" if cond.anonymise
+               else "PERMUTED" if getattr(cond, "shuffle", False) else "real")
     print(f"[rank] {len(queries)} queries · {ns.n_way}-way · condition {ns.condition} "
-          f"· prompt {ns.prompt} · {'anon' if cond.anonymise else 'real'}")
+          f"· prompt {ns.prompt} · surface form: {surface}")
+    print(f"[rank] example query head: {queries[0].head!r}  "
+          f"(if this looks like a real name under condition S, the permutation "
+          f"did not apply)")
     print(f"[rank] test labels: {'±1 present' if labelled else 'absent -> all positives'} "
           f"| {len(kg.ent2txt):,} entities in the candidate pool")
 
@@ -205,9 +285,11 @@ def main() -> None:
     m = metrics(ranks)
 
     tag = ns.tag or f"ch1rank-{ns.dataset}-{ns.condition}-{ns.prompt}"
+    # ★ was ranks[:200], which threw away 60% of the per-query records and
+    #   widened every bootstrap CI by ~1.6x for no saving worth having.
     save_result(cfg, tag, {"metrics": m, "condition": ns.condition,
                            "prompt": ns.prompt, "adapter": ns.adapter,
-                           "ranks": ranks[:200]})
+                           "surface_form": surface, "ranks": ranks})
 
     print("\n" + "=" * 60)
     print(f"{tag}   ({m['protocol']})")

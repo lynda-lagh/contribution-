@@ -1,0 +1,375 @@
+{
+  "config": {
+    "seed": 42,
+    "model": {
+      "name": "Qwen/Qwen2.5-1.5B-Instruct",
+      "dtype": "fp16",
+      "trust_remote_code": false,
+      "pad_token": "eos",
+      "attn_implementation": "sdpa"
+    },
+    "data": {
+      "root": "data",
+      "train_triples": 10000,
+      "sampling": "stratified_by_relation",
+      "min_per_relation": 10,
+      "val_size": 1000,
+      "test_subset": 2000,
+      "negatives": "random"
+    },
+    "tokenizer": {
+      "cutoff_len": 512,
+      "padding": "dynamic",
+      "add_eos_token": true
+    },
+    "prompt": {
+      "template": "alpaca",
+      "include_entity_description": true,
+      "regenerate_entity_description": false,
+      "include_relation_description": false,
+      "include_exclusion_list": false,
+      "include_type_tag": false,
+      "include_neighbours": false
+    },
+    "peft": {
+      "method": "lora",
+      "r": 8,
+      "alpha": 16,
+      "dropout": 0.05,
+      "target_modules": [
+        "q_proj",
+        "v_proj"
+      ],
+      "bias": "none",
+      "task_type": "CAUSAL_LM",
+      "boft_block_size": 4,
+      "boft_n_butterfly_factor": 2
+    },
+    "train": {
+      "epochs": 2,
+      "learning_rate": 0.0003,
+      "micro_batch_size": 4,
+      "grad_accum_steps": 8,
+      "warmup_steps": 100,
+      "optim": "adamw_torch",
+      "gradient_checkpointing": true,
+      "torch_compile": false,
+      "fp16": true,
+      "logging_steps": 20,
+      "eval_steps": 250,
+      "save_steps": 250,
+      "save_total_limit": 2,
+      "adapter_only_checkpoint": true,
+      "report_to": "wandb"
+    },
+    "infer": {
+      "greedy": {
+        "do_sample": false,
+        "max_new_tokens": 16
+      },
+      "sampling": {
+        "do_sample": true,
+        "top_p": 0.95,
+        "top_k": 20,
+        "num_return_sequences": 10
+      }
+    },
+    "output": {
+      "results_dir": "results",
+      "adapter_dir": "checkpoints"
+    }
+  },
+  "env": {
+    "torch": "2.10.0+cu128",
+    "cuda": "12.8",
+    "n_gpu": 1,
+    "gpus": [
+      "Tesla T4"
+    ],
+    "bf16_supported": true,
+    "transformers": "4.57.6",
+    "peft": "0.19.1",
+    "trl": "1.10.0",
+    "datasets": "5.0.0",
+    "peft_env": "official",
+    "has_mora": false,
+    "has_boft": true
+  },
+  "run_name": "ch1-YAGO3-10-C",
+  "peft_method": "lora",
+  "model": "Qwen/Qwen2.5-1.5B-Instruct",
+  "n_instances": 20000,
+  "train_runtime_s": 2348.1603,
+  "train_loss": 0.06772463773737852,
+  "steps": 0.506,
+  "peak_vram_gb": 3.963525632,
+  "output_dir": "checkpoints/ch1-YAGO3-10-C",
+  "curve": {
+    "verdict": "\u2705 GOOD FIT \u2014 eval_loss plateaued near its minimum",
+    "final_train_loss": 0.051,
+    "best_eval_loss": 0.05236,
+    "last_eval_loss": 0.05269,
+    "best_step": 750,
+    "total_steps": 1000,
+    "relative_rise_after_best": 0.00628,
+    "train_curve": [
+      [
+        20,
+        0.6027
+      ],
+      [
+        40,
+        0.1997
+      ],
+      [
+        60,
+        0.096
+      ],
+      [
+        80,
+        0.0809
+      ],
+      [
+        100,
+        0.0691
+      ],
+      [
+        120,
+        0.0821
+      ],
+      [
+        140,
+        0.0637
+      ],
+      [
+        160,
+        0.0699
+      ],
+      [
+        180,
+        0.0704
+      ],
+      [
+        200,
+        0.067
+      ],
+      [
+        220,
+        0.0652
+      ],
+      [
+        240,
+        0.0564
+      ],
+      [
+        260,
+        0.0593
+      ],
+      [
+        280,
+        0.0521
+      ],
+      [
+        300,
+        0.0636
+      ],
+      [
+        320,
+        0.057
+      ],
+      [
+        340,
+        0.0571
+      ],
+      [
+        360,
+        0.0585
+      ],
+      [
+        380,
+        0.0547
+      ],
+      [
+        400,
+        0.0601
+      ],
+      [
+        420,
+        0.0574
+      ],
+      [
+        440,
+        0.0577
+      ],
+      [
+        460,
+        0.0475
+      ],
+      [
+        480,
+        0.0578
+      ],
+      [
+        500,
+        0.0589
+      ],
+      [
+        520,
+        0.0495
+      ],
+      [
+        540,
+        0.0508
+      ],
+      [
+        560,
+        0.0551
+      ],
+      [
+        580,
+        0.0607
+      ],
+      [
+        600,
+        0.0509
+      ],
+      [
+        620,
+        0.0515
+      ],
+      [
+        640,
+        0.0553
+      ],
+      [
+        660,
+        0.054
+      ],
+      [
+        680,
+        0.0502
+      ],
+      [
+        700,
+        0.0565
+      ],
+      [
+        720,
+        0.0514
+      ],
+      [
+        740,
+        0.052
+      ],
+      [
+        760,
+        0.0515
+      ],
+      [
+        780,
+        0.0456
+      ],
+      [
+        800,
+        0.0527
+      ],
+      [
+        820,
+        0.0497
+      ],
+      [
+        840,
+        0.0529
+      ],
+      [
+        860,
+        0.0465
+      ],
+      [
+        880,
+        0.0508
+      ],
+      [
+        900,
+        0.0477
+      ],
+      [
+        920,
+        0.0523
+      ],
+      [
+        940,
+        0.0477
+      ],
+      [
+        960,
+        0.0528
+      ],
+      [
+        980,
+        0.0447
+      ],
+      [
+        1000,
+        0.0543
+      ],
+      [
+        1020,
+        0.0524
+      ],
+      [
+        1040,
+        0.0514
+      ],
+      [
+        1060,
+        0.0502
+      ],
+      [
+        1080,
+        0.0554
+      ],
+      [
+        1100,
+        0.0504
+      ],
+      [
+        1120,
+        0.049
+      ],
+      [
+        1140,
+        0.0495
+      ],
+      [
+        1160,
+        0.0455
+      ],
+      [
+        1180,
+        0.051
+      ]
+    ],
+    "eval_curve": [
+      [
+        250,
+        0.05836
+      ],
+      [
+        500,
+        0.05424
+      ],
+      [
+        750,
+        0.05236
+      ],
+      [
+        1000,
+        0.05269
+      ]
+    ]
+  },
+  "condition": "C",
+  "isolates": "TYPE INFORMATION, with names removed",
+  "reference": "\u2605 the core new question. CATS / Knit / RealKGC all ADD types and never REMOVE names, so none can answer this"
+}

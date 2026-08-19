@@ -1,0 +1,38 @@
+[
+  {
+    "condition": "C",
+    "tag_only_accuracy": 0.567858497723824,
+    "p_match_positive": 0.2607169954476479,
+    "p_match_negative": 0.125,
+    "separation": 0.13571699544764793,
+    "n": 21088,
+    "verdict": "MATERIAL LEAK"
+  },
+  {
+    "condition": "D",
+    "tag_only_accuracy": 0.567858497723824,
+    "p_match_positive": 0.2607169954476479,
+    "p_match_negative": 0.125,
+    "separation": 0.13571699544764793,
+    "n": 21088,
+    "verdict": "MATERIAL LEAK"
+  },
+  {
+    "condition": "E",
+    "tag_only_accuracy": 0.567858497723824,
+    "p_match_positive": 0.2607169954476479,
+    "p_match_negative": 0.125,
+    "separation": 0.13571699544764793,
+    "n": 21088,
+    "verdict": "MATERIAL LEAK"
+  },
+  {
+    "condition": "G",
+    "tag_only_accuracy": 0.567858497723824,
+    "p_match_positive": 0.2607169954476479,
+    "p_match_negative": 0.125,
+    "separation": 0.13571699544764793,
+    "n": 21088,
+    "verdict": "MATERIAL LEAK"
+  }
+]

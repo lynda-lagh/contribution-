@@ -72,8 +72,20 @@ def main() -> None:
     cfg = load_config(ns.config)
     cond = CONDITIONS[ns.condition]
     root = cfg["data"]["root"]
-    tag = f"ch1-{ns.dataset}-{ns.condition}"
-    data_dir = Path(root, f"{ns.dataset}-{ns.condition}", "built")
+
+    # ★★ THE PROMPT IS PART OF THE IDENTITY OF A RUN.
+    #    Both of these used to ignore ns.prompt entirely, so
+    #    `--train --prompt P6` did two silent, destructive things:
+    #      1. read data/{ds}-{cond}/built  -> the P0 INSTANCES. The model
+    #         trained on plain prompts while the run was labelled P6.
+    #      2. wrote checkpoints/ch1-{ds}-{cond} -> OVERWROTE the P0 ADAPTER
+    #         with it, destroying a finished run.
+    #    chapter1/data.py has always written to {ds}-{cond}-{prompt} for
+    #    non-P0 prompts; run.py simply never looked there. P0 keeps the bare
+    #    name so every existing path and checkpoint stays valid.
+    suffix = "" if ns.prompt == "P0" else f"-{ns.prompt}"
+    tag = f"ch1-{ns.dataset}-{ns.condition}{suffix}"
+    data_dir = Path(root, f"{ns.dataset}-{ns.condition}{suffix}", "built")
     adapter = Path(cfg["output"]["adapter_dir"], tag)
 
     # ---------------------------------------------------------------- build
@@ -98,7 +110,7 @@ def main() -> None:
     if ns.evaluate:
         from .evaluate import evaluate_both
         r = evaluate_both(cfg, cond, ns.dataset, str(adapter), ns.limit,
-                          with_smi=ns.smi)
+                          with_smi=ns.smi, prompt=ns.prompt)
         save_result(cfg, f"{tag}-eval", r)
         print(f"\n  real {r['acc_real']:.4f} · anon {r['acc_anon']:.4f} · "
               f"GAP {r['gap']:+.4f}")

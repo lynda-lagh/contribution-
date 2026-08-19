@@ -1,0 +1,150 @@
+[
+  {
+    "dataset": "YAGO3-10",
+    "ids": {
+      "n_entities": 123182,
+      "sample": [
+        "Morges_District",
+        "Vincenzo_Marruocco",
+        "Time_Out_for_Rhythm",
+        "Malcolm_McLaren",
+        "Leonardo_Rodr\u00edguez",
+        "Gmina_Pi\u0144cz\u00f3w"
+      ],
+      "pos_marker_rate": 8.118069198421847e-06,
+      "freebase_mid_rate": 0.0,
+      "numeric_rate": 0.0,
+      "wordnet_style_rate": 0.0,
+      "carries_type_in_id": false,
+      "verdict": "\u26a0\ufe0f ids carry NO type marker -> `pos` returns 100% OTHER. Induced types (relation positions) are the fallback."
+    },
+    "descriptions": {
+      "median_words": 2.0,
+      "mean_words": 2.4091019791852704,
+      "max_words": 14,
+      "bare_label_rate": 1.0,
+      "has_real_descriptions": false,
+      "verdict": "\u26a0\ufe0f labels are short names, not descriptions -> 'entity description' enrichment has almost nothing to work with (cf. ColKGC: rewriting existing descriptions gives ~0 gain)"
+    },
+    "relations": {
+      "n_relations": 37,
+      "max_freq": 373783,
+      "min_freq": 19,
+      "edge_imbalance_ratio": 19672.78947368421,
+      "edge_imbalance_ratio_sampled": 331.5,
+      "top1_share": 0.346403284400949,
+      "top3_share": 0.7260889309015421,
+      "verdict": "\u26a0\ufe0f heavily imbalanced (EIR 19672.8, top relation = 34.6% of triples) -> report PER-RELATION accuracy, a headline mean can be one relation solved"
+    },
+    "test": {
+      "n_test": 10000,
+      "positive": 5000,
+      "negative": 5000,
+      "unlabelled": 0,
+      "balance": 0.5,
+      "supports_classification": true,
+      "supports_ranking": true,
+      "verdict": "\u00b11 labels present (5,000 pos / 5,000 neg) -> triple classification AND ranking both work"
+    },
+    "types": {
+      "pos": {
+        "distinct": 1,
+        "other_rate": 0.9999918819308016,
+        "top_type": [
+          "VB",
+          1
+        ],
+        "top_share": 1.0,
+        "entropy_bits": -0.0,
+        "max_entropy_bits": 0.0,
+        "usable": false
+      },
+      "induced": {
+        "distinct": 64,
+        "other_rate": 0.0003409589063336771,
+        "top_type": [
+          "isAffiliatedTo::head",
+          33735
+        ],
+        "top_share": 0.2739564723079422,
+        "entropy_bits": 3.795672385347583,
+        "max_entropy_bits": 6.0,
+        "usable": true
+      },
+      "recommended": "induced",
+      "verdict": "use method='induced'"
+    },
+    "types_anon": {
+      "pos": {
+        "distinct": 1,
+        "other_rate": 0.9999918819308016,
+        "top_type": [
+          "VB",
+          1
+        ],
+        "top_share": 1.0,
+        "entropy_bits": -0.0,
+        "max_entropy_bits": 0.0,
+        "usable": false
+      },
+      "induced": {
+        "distinct": 64,
+        "other_rate": 0.0003409589063336771,
+        "top_type": [
+          "isAffiliatedTo::head",
+          33735
+        ],
+        "top_share": 0.2739564723079422,
+        "entropy_bits": 3.795672385347583,
+        "max_entropy_bits": 6.0,
+        "usable": true
+      },
+      "recommended": "induced",
+      "verdict": "use method='induced'"
+    },
+    "ambiguity": {
+      "ambiguous_surface_forms": 1730,
+      "entities_affected": 4837,
+      "rate": 0.03926710071276648,
+      "worst": {
+        "name": "washington county",
+        "n": 25
+      },
+      "verdict": "meaningful ambiguity -> disambiguation features have signal"
+    },
+    "degree": {
+      "median": 10,
+      "mean": 17.52499127031175,
+      "p90": 24,
+      "max": 61044,
+      "entities_with_degree_1": 0.03466701314731654,
+      "hub": {
+        "entity": "male",
+        "degree": 61044,
+        "share": 0.028286254448398575
+      }
+    },
+    "coverage": {
+      "1000": {
+        "entities_seen": 1806,
+        "coverage": 0.014661232972349857,
+        "test_both_seen": 0.0038
+      },
+      "10000": {
+        "entities_seen": 14319,
+        "coverage": 0.11624263285220243,
+        "test_both_seen": 0.0825
+      },
+      "25000": {
+        "entities_seen": 29854,
+        "coverage": 0.24235683784968584,
+        "test_both_seen": 0.2122
+      },
+      "50000": {
+        "entities_seen": 48842,
+        "coverage": 0.3965027357893199,
+        "test_both_seen": 0.3878
+      }
+    }
+  }
+]

@@ -1,0 +1,119 @@
+[
+  {
+    "condition": "untuned",
+    "n": 2000,
+    "buckets": {
+      "both_seen": {
+        "n": 438,
+        "share": 0.219,
+        "accuracy": 0.7397260273972602,
+        "balanced_accuracy": 0.6942865885644344,
+        "positive_rate": 0.6073059360730594,
+        "majority_baseline": 0.6073059360730594,
+        "mean_confidence": 0.7921041344807669
+      },
+      "one_seen": {
+        "n": 1063,
+        "share": 0.5315,
+        "accuracy": 0.6952022577610536,
+        "balanced_accuracy": 0.695364824490605,
+        "positive_rate": 0.4995296331138288,
+        "majority_baseline": 0.5004703668861712,
+        "mean_confidence": 0.7759425687180199
+      },
+      "neither": {
+        "n": 499,
+        "share": 0.2495,
+        "accuracy": 0.6432865731462926,
+        "balanced_accuracy": 0.6761083743842364,
+        "positive_rate": 0.40681362725450904,
+        "majority_baseline": 0.5931863727454909,
+        "mean_confidence": 0.7589673856846184
+      }
+    },
+    "familiarity_gap": 0.018178214180197938,
+    "familiarity_gap_raw": 0.09643945425096767,
+    "base_rate_artefact": 0.014119563327568474,
+    "confidence_gap": 0.033136748796148474,
+    "overconfident_on_unseen": false,
+    "verdict": "\u2605\u2605 MEMORISATION IS PRETRAINED, NOT TRAINING-SET RECALL. Anonymisation removes +0.3940, yet the balanced familiarity gap is only +0.0182 \u2014 withholding the entity from fine-tuning changes nothing. Names carry the accuracy; the knowledge behind them predates this training run. This LOCALISES the claim rather than weakening it, and rules out the obvious alternative explanation."
+  },
+  {
+    "condition": "tuned",
+    "n": 2000,
+    "buckets": {
+      "both_seen": {
+        "n": 438,
+        "share": 0.219,
+        "accuracy": 0.9269406392694064,
+        "balanced_accuracy": 0.92546773911523,
+        "positive_rate": 0.6073059360730594,
+        "majority_baseline": 0.6073059360730594,
+        "mean_confidence": 0.9327625957145022
+      },
+      "one_seen": {
+        "n": 1063,
+        "share": 0.5315,
+        "accuracy": 0.9275634995296331,
+        "balanced_accuracy": 0.9275430808660068,
+        "positive_rate": 0.4995296331138288,
+        "majority_baseline": 0.5004703668861712,
+        "mean_confidence": 0.932152613223223
+      },
+      "neither": {
+        "n": 499,
+        "share": 0.2495,
+        "accuracy": 0.9238476953907816,
+        "balanced_accuracy": 0.921881240846758,
+        "positive_rate": 0.40681362725450904,
+        "majority_baseline": 0.5931863727454909,
+        "mean_confidence": 0.9193865952620419
+      }
+    },
+    "familiarity_gap": 0.003586498268471905,
+    "familiarity_gap_raw": 0.0030929438786247987,
+    "base_rate_artefact": 0.014119563327568474,
+    "confidence_gap": 0.013376000452460235,
+    "overconfident_on_unseen": false,
+    "verdict": "\u2605\u2605 MEMORISATION IS PRETRAINED, NOT TRAINING-SET RECALL. Anonymisation removes +0.3940, yet the balanced familiarity gap is only +0.0036 \u2014 withholding the entity from fine-tuning changes nothing. Names carry the accuracy; the knowledge behind them predates this training run. This LOCALISES the claim rather than weakening it, and rules out the obvious alternative explanation."
+  },
+  {
+    "condition": "tuned_anon",
+    "n": 2000,
+    "buckets": {
+      "both_seen": {
+        "n": 438,
+        "share": 0.219,
+        "accuracy": 0.4452054794520548,
+        "balanced_accuracy": 0.5247420877775835,
+        "positive_rate": 0.6073059360730594,
+        "majority_baseline": 0.6073059360730594,
+        "mean_confidence": 0.5470321870469239
+      },
+      "one_seen": {
+        "n": 1063,
+        "share": 0.5315,
+        "accuracy": 0.5268109125117592,
+        "balanced_accuracy": 0.5264379168259632,
+        "positive_rate": 0.4995296331138288,
+        "majority_baseline": 0.5004703668861712,
+        "mean_confidence": 0.5453069303674715
+      },
+      "neither": {
+        "n": 499,
+        "share": 0.2495,
+        "accuracy": 0.6212424849699398,
+        "balanced_accuracy": 0.5507339235787512,
+        "positive_rate": 0.40681362725450904,
+        "majority_baseline": 0.5931863727454909,
+        "mean_confidence": 0.5470594636961081
+      }
+    },
+    "familiarity_gap": -0.025991835801167706,
+    "familiarity_gap_raw": -0.17603700551788504,
+    "base_rate_artefact": 0.014119563327568474,
+    "confidence_gap": -2.7276649184226898e-05,
+    "overconfident_on_unseen": false,
+    "verdict": "\u2605\u2605 MEMORISATION IS PRETRAINED, NOT TRAINING-SET RECALL. Anonymisation removes +0.3940, yet the balanced familiarity gap is only -0.0260 \u2014 withholding the entity from fine-tuning changes nothing. Names carry the accuracy; the knowledge behind them predates this training run. This LOCALISES the claim rather than weakening it, and rules out the obvious alternative explanation."
+  }
+]

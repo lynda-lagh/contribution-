@@ -227,7 +227,7 @@ def main() -> None:
     # which build_instructions preserves exactly
     if recs and "head" not in recs[0]:
         print("[seen] test_instructions.json has no head/tail — recovering from kg.test")
-        for r, t in zip(recs, kg.test):
+        for r, t in zip(recs, kg.test, strict=True):
             r["head"], r["tail"], r["relation"] = t.head, t.tail, t.relation
 
     # ★ the other instrument's number, so the verdict can be a JOINT reading
