@@ -47,9 +47,10 @@ from .stats import (align, bootstrap_ci, fmt_ci, fmt_diff, min_detectable_effect
                     paired_bootstrap, verdict)
 
 
-def load_all(results: Path, dataset: str, direction: str, tag: str,
+def load_all(results, dataset: str, direction: str, tag: str,
              task: str = "link") -> dict:
     """(policy, budget) -> result dict, for one (direction, tag, task) slice."""
+    results = Path(results)          # accept a str as well as a Path
     out = {}
     suffix = "" if task == "link" else "_rel"
     pat = str(results / f"ch3_{dataset}_*_B*_{direction}_{tag}{suffix}.json")

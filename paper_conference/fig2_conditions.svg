@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="566" viewBox="0 0 960 566" font-family="Calibri, Carlito, Arial, sans-serif">
+  <defs>
+    <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M1 1L9 5L1 9" fill="none" stroke="#546E7A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="960" height="566" fill="#FFFFFF"/>
+
+  <rect x="270" y="12" width="420" height="30" rx="15" fill="#37474F"/>
+  <text x="480" y="32" text-anchor="middle" font-size="15" fill="#fff">Test triple: &lt;domestic cat, type of, cat&gt;   (true)</text>
+
+  <rect x="16" y="72" width="150" height="470" rx="6" fill="none" stroke="#90A4AE" stroke-width="1.2" stroke-dasharray="6 4"/>
+  <rect x="200" y="72" width="514" height="470" rx="6" fill="none" stroke="#90A4AE" stroke-width="1.2" stroke-dasharray="6 4"/>
+  <rect x="832" y="72" width="118" height="470" rx="6" fill="none" stroke="#90A4AE" stroke-width="1.2" stroke-dasharray="6 4"/>
+  <text x="91"  y="64" text-anchor="middle" font-size="14" font-weight="bold" fill="#37474F">Condition</text>
+  <text x="457" y="64" text-anchor="middle" font-size="14" font-weight="bold" fill="#37474F">Prompt formation (positive instance)</text>
+  <text x="891" y="64" text-anchor="middle" font-size="14" font-weight="bold" fill="#37474F">Isolates</text>
+
+  <!-- A -->
+  <rect x="26" y="84" width="130" height="48" rx="6" fill="#EDE7F6" stroke="#5E35B1" stroke-width="1.3"/>
+  <text x="38" y="104" font-size="14" font-weight="bold" fill="#4527A0">A &#183; baseline</text>
+  <text x="38" y="122" font-size="12" fill="#546E7A">names, no types</text>
+  <rect x="210" y="84" width="494" height="48" rx="6" fill="#E0F2F1" stroke="#00796B" stroke-width="1.3"/>
+  <text x="222" y="113" font-size="14" fill="#004D40">Is this true: <tspan font-weight="bold">domestic cat</tspan> type of <tspan font-weight="bold">cat</tspan>?</text>
+  <rect x="842" y="84" width="98" height="48" rx="6" fill="#ECEFF1" stroke="#546E7A" stroke-width="1.2"/>
+  <text x="891" y="105" text-anchor="middle" font-size="12" fill="#37474F">the published</text>
+  <text x="891" y="121" text-anchor="middle" font-size="12" fill="#37474F">recipe</text>
+
+  <!-- S -->
+  <rect x="26" y="150" width="130" height="48" rx="6" fill="#EDE7F6" stroke="#5E35B1" stroke-width="1.3"/>
+  <text x="38" y="170" font-size="14" font-weight="bold" fill="#4527A0">S &#183; permuted</text>
+  <text x="38" y="188" font-size="12" fill="#546E7A">names reassigned</text>
+  <rect x="210" y="150" width="494" height="48" rx="6" fill="#E0F2F1" stroke="#00796B" stroke-width="1.3"/>
+  <text x="222" y="173" font-size="14" fill="#004D40">Is this true: <tspan font-weight="bold">light breeze</tspan> type of <tspan font-weight="bold">inborn error of metabolism</tspan>?</text>
+  <text x="222" y="191" font-size="11" fill="#00796B">real words, real vocabulary &#8212; only the assignment to nodes is destroyed</text>
+  <rect x="842" y="150" width="98" height="48" rx="6" fill="#ECEFF1" stroke="#546E7A" stroke-width="1.2"/>
+  <text x="891" y="171" text-anchor="middle" font-size="12" fill="#37474F">name-to-node</text>
+  <text x="891" y="187" text-anchor="middle" font-size="12" fill="#37474F">binding</text>
+
+  <!-- B -->
+  <rect x="26" y="216" width="130" height="48" rx="6" fill="#EDE7F6" stroke="#5E35B1" stroke-width="1.3"/>
+  <text x="38" y="236" font-size="14" font-weight="bold" fill="#4527A0">B &#183; anonymised</text>
+  <text x="38" y="254" font-size="12" fill="#546E7A">opaque ids</text>
+  <rect x="210" y="216" width="494" height="48" rx="6" fill="#E0F2F1" stroke="#00796B" stroke-width="1.3"/>
+  <text x="222" y="245" font-size="14" fill="#004D40">Is this true: <tspan font-weight="bold">entity14008</tspan> type of <tspan font-weight="bold">entity8129</tspan>?</text>
+  <rect x="842" y="216" width="98" height="48" rx="6" fill="#ECEFF1" stroke="#546E7A" stroke-width="1.2"/>
+  <text x="891" y="237" text-anchor="middle" font-size="12" fill="#37474F">entity surface</text>
+  <text x="891" y="253" text-anchor="middle" font-size="12" fill="#37474F">form</text>
+
+  <!-- C -->
+  <rect x="26" y="282" width="130" height="48" rx="6" fill="#EDE7F6" stroke="#5E35B1" stroke-width="1.3"/>
+  <text x="38" y="302" font-size="14" font-weight="bold" fill="#4527A0">C &#183; anon + types</text>
+  <text x="38" y="320" font-size="12" fill="#546E7A">type tags added</text>
+  <rect x="210" y="282" width="494" height="48" rx="6" fill="#E0F2F1" stroke="#00796B" stroke-width="1.3"/>
+  <text x="222" y="305" font-size="14" fill="#004D40">Is this true: entity14008 <tspan fill="#AD1457" font-weight="bold">[member holonym : head]</tspan> type of</text>
+  <text x="222" y="323" font-size="14" fill="#004D40">entity8129 <tspan fill="#AD1457" font-weight="bold">[type of : tail]</tspan>?</text>
+  <rect x="842" y="282" width="98" height="48" rx="6" fill="#ECEFF1" stroke="#546E7A" stroke-width="1.2"/>
+  <text x="891" y="303" text-anchor="middle" font-size="12" fill="#37474F">can types</text>
+  <text x="891" y="319" text-anchor="middle" font-size="12" fill="#37474F">replace names?</text>
+
+  <!-- D -->
+  <rect x="26" y="348" width="130" height="66" rx="6" fill="#EDE7F6" stroke="#5E35B1" stroke-width="1.3"/>
+  <text x="38" y="368" font-size="14" font-weight="bold" fill="#4527A0">D &#183; hard neg.</text>
+  <text x="38" y="386" font-size="12" fill="#546E7A">type-consistent</text>
+  <text x="38" y="404" font-size="12" fill="#546E7A">corruption</text>
+  <rect x="210" y="348" width="494" height="66" rx="6" fill="#E0F2F1" stroke="#00796B" stroke-width="1.3"/>
+  <text x="222" y="368" font-size="12" fill="#00796B">the positive is unchanged. Only the NEGATIVE differs:</text>
+  <text x="222" y="387" font-size="13" fill="#004D40">A&#8211;C: ... type of <tspan font-weight="bold">daydreamer</tspan>  &#8212; drawn at random, easy to reject</text>
+  <text x="222" y="406" font-size="13" fill="#004D40">D&#160;&#160;&#160;: ... type of <tspan font-weight="bold">craft</tspan> <tspan fill="#AD1457" font-weight="bold">[type of : tail]</tspan>  &#8212; same tag as the true answer</text>
+  <rect x="842" y="348" width="98" height="66" rx="6" fill="#ECEFF1" stroke="#546E7A" stroke-width="1.2"/>
+  <text x="891" y="378" text-anchor="middle" font-size="12" fill="#37474F">negative</text>
+  <text x="891" y="394" text-anchor="middle" font-size="12" fill="#37474F">hardness</text>
+
+  <!-- G -->
+  <rect x="26" y="432" width="130" height="48" rx="6" fill="#EDE7F6" stroke="#5E35B1" stroke-width="1.3"/>
+  <text x="38" y="452" font-size="14" font-weight="bold" fill="#4527A0">G &#183; real + types</text>
+  <text x="38" y="470" font-size="12" fill="#546E7A">names kept</text>
+  <rect x="210" y="432" width="494" height="48" rx="6" fill="#E0F2F1" stroke="#00796B" stroke-width="1.3"/>
+  <text x="222" y="455" font-size="14" fill="#004D40">Is this true: <tspan font-weight="bold">domestic cat</tspan> <tspan fill="#AD1457" font-weight="bold">[member holonym : head]</tspan> type of</text>
+  <text x="222" y="473" font-size="14" fill="#004D40"><tspan font-weight="bold">cat</tspan> <tspan fill="#AD1457" font-weight="bold">[type of : tail]</tspan>?</text>
+  <rect x="842" y="432" width="98" height="48" rx="6" fill="#ECEFF1" stroke="#546E7A" stroke-width="1.2"/>
+  <text x="891" y="453" text-anchor="middle" font-size="12" fill="#37474F">do types help</text>
+  <text x="891" y="469" text-anchor="middle" font-size="12" fill="#37474F">when names do?</text>
+
+  <!-- E -->
+  <rect x="26" y="498" width="130" height="34" rx="6" fill="#F5F5F5" stroke="#BDBDBD" stroke-width="1.2"/>
+  <text x="38" y="519" font-size="13" font-weight="bold" fill="#9E9E9E">E &#183; many neg.</text>
+  <rect x="210" y="498" width="494" height="34" rx="6" fill="#F5F5F5" stroke="#BDBDBD" stroke-width="1.2"/>
+  <text x="222" y="519" font-size="13" fill="#9E9E9E">as D, with 6 negatives per positive &#8212; the model collapsed to &#8220;No&#8221; on all 2000 test triples</text>
+  <rect x="842" y="498" width="98" height="34" rx="6" fill="#F5F5F5" stroke="#BDBDBD" stroke-width="1.2"/>
+  <text x="891" y="519" text-anchor="middle" font-size="12" fill="#9E9E9E">negative count</text>
+
+  <line x1="156" y1="108" x2="208" y2="108" stroke="#546E7A" stroke-width="1.4" marker-end="url(#a2)"/>
+  <line x1="156" y1="174" x2="208" y2="174" stroke="#546E7A" stroke-width="1.4" marker-end="url(#a2)"/>
+  <line x1="156" y1="240" x2="208" y2="240" stroke="#546E7A" stroke-width="1.4" marker-end="url(#a2)"/>
+  <line x1="156" y1="306" x2="208" y2="306" stroke="#546E7A" stroke-width="1.4" marker-end="url(#a2)"/>
+  <line x1="156" y1="381" x2="208" y2="381" stroke="#546E7A" stroke-width="1.4" marker-end="url(#a2)"/>
+  <line x1="156" y1="456" x2="208" y2="456" stroke="#546E7A" stroke-width="1.4" marker-end="url(#a2)"/>
+  <line x1="704" y1="108" x2="840" y2="108" stroke="#546E7A" stroke-width="1.4" marker-end="url(#a2)"/>
+  <line x1="704" y1="174" x2="840" y2="174" stroke="#546E7A" stroke-width="1.4" marker-end="url(#a2)"/>
+  <line x1="704" y1="240" x2="840" y2="240" stroke="#546E7A" stroke-width="1.4" marker-end="url(#a2)"/>
+  <line x1="704" y1="306" x2="840" y2="306" stroke="#546E7A" stroke-width="1.4" marker-end="url(#a2)"/>
+  <line x1="704" y1="381" x2="840" y2="381" stroke="#546E7A" stroke-width="1.4" marker-end="url(#a2)"/>
+  <line x1="704" y1="456" x2="840" y2="456" stroke="#546E7A" stroke-width="1.4" marker-end="url(#a2)"/>
+</svg>

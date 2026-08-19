@@ -106,7 +106,7 @@ def yes_no_probabilities(
         p_yes = probs[:, yes_ids].sum(dim=-1)
         p_no = probs[:, no_ids].sum(dim=-1)
         denom = (p_yes + p_no).clamp_min(1e-12)
-        out.extend(zip((p_yes / denom).tolist(), (p_no / denom).tolist()))
+        out.extend(zip((p_yes / denom).tolist(), (p_no / denom).tolist(), strict=True))
     finally:
         tokenizer.padding_side = prev_side        # leave the tokenizer as we found it
     return out

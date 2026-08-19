@@ -1,0 +1,188 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="670" viewBox="0 0 1180 670" font-family="Calibri, Carlito, Arial, sans-serif">
+  <defs>
+    <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M1 1L9 5L1 9" fill="none" stroke="#555" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1180" height="670" fill="#FFFFFF"/>
+
+  <!-- ================= PHASE BANNER ================= -->
+  <rect x="140" y="18" width="906" height="30" rx="3" fill="#1F4E79"/>
+  <text x="593" y="38" text-anchor="middle" font-size="15" font-style="italic" fill="#fff">Anonymisation diagnostic: measuring what instruction tuning installs</text>
+
+  <path d="M140 58 H391 L405 77 L391 96 H140 Z" fill="#2E75B6"/>
+  <text x="265" y="82" text-anchor="middle" font-size="13" font-style="italic" font-weight="bold" fill="#fff">Data Preparation</text>
+
+  <path d="M397 58 H607 L621 77 L607 96 H397 L411 77 Z" fill="#C55A11"/>
+  <text x="505" y="82" text-anchor="middle" font-size="13" font-style="italic" font-weight="bold" fill="#fff">Surface-Form Control</text>
+
+  <path d="M627 58 H831 L845 77 L831 96 H627 L641 77 Z" fill="#5B9BD5"/>
+  <text x="733" y="82" text-anchor="middle" font-size="13" font-style="italic" font-weight="bold" fill="#fff">Adaptation</text>
+
+  <path d="M851 58 H1032 L1046 77 L1032 96 H851 L865 77 Z" fill="#9DC3E6"/>
+  <text x="945" y="82" text-anchor="middle" font-size="13" font-style="italic" font-weight="bold" fill="#1F4E79">Scoring</text>
+
+  <text x="75" y="82" text-anchor="middle" font-size="14" font-style="italic" font-weight="bold">Input</text>
+  <text x="1113" y="82" text-anchor="middle" font-size="14" font-style="italic" font-weight="bold">Output</text>
+
+  <!-- lane separators -->
+  <line x1="140" y1="104" x2="140" y2="510" stroke="#BBB" stroke-width="1" stroke-dasharray="5 4"/>
+  <line x1="410" y1="104" x2="410" y2="510" stroke="#BBB" stroke-width="1" stroke-dasharray="5 4"/>
+  <line x1="626" y1="104" x2="626" y2="510" stroke="#BBB" stroke-width="1" stroke-dasharray="5 4"/>
+  <line x1="850" y1="104" x2="850" y2="510" stroke="#BBB" stroke-width="1" stroke-dasharray="5 4"/>
+  <line x1="1046" y1="104" x2="1046" y2="510" stroke="#BBB" stroke-width="1" stroke-dasharray="5 4"/>
+
+  <!-- ================= INPUT ================= -->
+  <g>
+    <path d="M39 132 h60 l12 12 v56 h-72 Z" fill="#F2F2F2" stroke="#808080" stroke-width="1.2"/>
+    <path d="M99 132 v12 h12" fill="none" stroke="#808080" stroke-width="1.2"/>
+    <path d="M47 152 h50 M47 164 h50 M47 176 h34" stroke="#AAA" stroke-width="1.4"/>
+    <text x="75" y="216" text-anchor="middle" font-size="12" font-weight="bold">Triples</text>
+    <text x="75" y="231" text-anchor="middle" font-size="11" fill="#555">h &#8211; r &#8211; t</text>
+
+    <ellipse cx="75" cy="266" rx="34" ry="9" fill="#DEEBF7" stroke="#2E75B6" stroke-width="1.2"/>
+    <path d="M41 266 v40 a34 9 0 0 0 68 0 v-40" fill="#DEEBF7" stroke="#2E75B6" stroke-width="1.2"/>
+    <text x="75" y="292" text-anchor="middle" font-size="11" font-weight="bold">YAGO3-10</text>
+    <text x="75" y="305" text-anchor="middle" font-size="11" font-weight="bold">WN11</text>
+    <text x="75" y="330" text-anchor="middle" font-size="11" fill="#555">123,182 / 38,588</text>
+    <text x="75" y="344" text-anchor="middle" font-size="11" fill="#555">entities</text>
+
+    <path d="M39 366 h60 l12 12 v40 h-72 Z" fill="#F2F2F2" stroke="#808080" stroke-width="1.2"/>
+    <path d="M99 366 v12 h12" fill="none" stroke="#808080" stroke-width="1.2"/>
+    <text x="75" y="392" text-anchor="middle" font-size="11">entity2text</text>
+    <text x="75" y="407" text-anchor="middle" font-size="11">relation2text</text>
+  </g>
+
+  <!-- ================= LANE 1 : DATA PREPARATION ================= -->
+  <rect x="150" y="112" width="240" height="380" rx="5" fill="#FFFBF0" stroke="#BF8F00" stroke-width="1.7"/>
+  <rect x="158" y="120" width="224" height="24" rx="3" fill="#BF8F00"/>
+  <text x="270" y="137" text-anchor="middle" font-size="12" font-weight="bold" fill="#fff">built once &#183; identical for every arm</text>
+
+  <circle cx="170" cy="166" r="8.5" fill="#BF8F00"/>
+  <text x="170" y="170" text-anchor="middle" font-size="10" font-weight="bold" fill="#fff">1</text>
+  <text x="186" y="171" font-size="12.5" font-weight="bold">Load &amp; sample</text>
+  <text x="168" y="187" font-size="10.5" fill="#444">train / valid / test + the two text maps</text>
+  <text x="168" y="201" font-size="10.5" fill="#444">10,000 train &#183; 2,000 test, one fixed draw</text>
+
+  <circle cx="170" cy="218" r="8.5" fill="#BF8F00"/>
+  <text x="170" y="222" text-anchor="middle" font-size="10" font-weight="bold" fill="#fff">2</text>
+  <text x="186" y="223" font-size="12.5" font-weight="bold">Build the three name maps</text>
+  <text x="168" y="239" font-size="10.5" fill="#444">A identity &#183; S bijection &#183; B opaque ids</text>
+
+  <circle cx="170" cy="254" r="8.5" fill="#BF8F00"/>
+  <text x="170" y="258" text-anchor="middle" font-size="10" font-weight="bold" fill="#fff">3</text>
+  <text x="186" y="259" font-size="12.5" font-weight="bold">Induce type tags</text>
+  <text x="168" y="275" font-size="10.5" fill="#444">modal (relation, position) per entity</text>
+  <text x="168" y="289" font-size="10.5" fill="#444">23 tags on WN11 &#183; 93.3% OTHER on YAGO</text>
+
+  <circle cx="170" cy="306" r="8.5" fill="#BF8F00"/>
+  <text x="170" y="310" text-anchor="middle" font-size="10" font-weight="bold" fill="#fff">4</text>
+  <text x="186" y="311" font-size="12.5" font-weight="bold">Pair positive + negative</text>
+  <text x="168" y="327" font-size="10.5" fill="#444">corrupt one slot, context unchanged</text>
+  <text x="168" y="341" font-size="10.5" fill="#444">random (A&#8211;C) vs type-matched (D)</text>
+
+  <circle cx="170" cy="358" r="8.5" fill="#BF8F00"/>
+  <text x="170" y="362" text-anchor="middle" font-size="10" font-weight="bold" fill="#fff">5</text>
+  <text x="186" y="363" font-size="12.5" font-weight="bold">Freeze the 50-way candidates</text>
+  <text x="168" y="379" font-size="10.5" fill="#444">filtered against every known true triple</text>
+  <text x="168" y="393" font-size="10.5" fill="#444">per-query seed + fingerprint</text>
+
+  <circle cx="170" cy="410" r="8.5" fill="#C00000"/>
+  <text x="170" y="414" text-anchor="middle" font-size="10" font-weight="bold" fill="#fff">6</text>
+  <text x="186" y="415" font-size="12.5" font-weight="bold" fill="#9C2C2C">Leak audit</text>
+  <text x="168" y="431" font-size="10.5" fill="#444">type-tag rule 62.4% &#8594; 51.3%</text>
+  <text x="168" y="445" font-size="10.5" fill="#444">inverse-relation context filter</text>
+
+  <line x1="162" y1="462" x2="378" y2="462" stroke="#BF8F00" stroke-width="0.8" stroke-dasharray="4 3"/>
+  <text x="270" y="479" text-anchor="middle" font-size="10.5" font-style="italic" fill="#7F5F00">20,000 instances leave this layer, then frozen</text>
+
+  <!-- ================= LANE 2 : SURFACE-FORM CONTROL ================= -->
+  <rect x="422" y="112" width="192" height="252" rx="5" fill="#FBE5D6" stroke="#C55A11" stroke-width="2"/>
+  <rect x="430" y="120" width="176" height="22" rx="3" fill="#C55A11"/>
+  <text x="518" y="136" text-anchor="middle" font-size="12" font-weight="bold" fill="#fff">the only variable</text>
+
+  <text x="438" y="164" font-size="13" font-weight="bold">A</text><text x="458" y="164" font-size="12">real names</text>
+  <text x="438" y="188" font-size="13" font-weight="bold">S</text><text x="458" y="188" font-size="12">names permuted</text>
+  <text x="438" y="212" font-size="13" font-weight="bold">B</text><text x="458" y="212" font-size="12">opaque identifiers</text>
+  <text x="438" y="236" font-size="13" font-weight="bold">C</text><text x="458" y="236" font-size="12">B + type tags</text>
+  <text x="438" y="260" font-size="13" font-weight="bold">D</text><text x="458" y="260" font-size="12">C + hard negatives</text>
+  <text x="438" y="284" font-size="13" font-weight="bold">G</text><text x="458" y="284" font-size="12">A + type tags</text>
+  <text x="438" y="308" font-size="13" font-weight="bold" fill="#999">E</text><text x="458" y="308" font-size="12" fill="#999">6 negatives (collapsed)</text>
+  <line x1="434" y1="322" x2="602" y2="322" stroke="#C55A11" stroke-width="0.8" stroke-dasharray="4 3"/>
+  <text x="518" y="340" text-anchor="middle" font-size="11" font-style="italic" fill="#7F3F00">one factor changes per row</text>
+  <text x="518" y="356" text-anchor="middle" font-size="11" font-style="italic" fill="#7F3F00">structure &#38; relations untouched</text>
+
+  <!-- ================= LANE 3 : ADAPTATION ================= -->
+  <path d="M638 124 h140 l12 12 v46 h-152 Z" fill="#C5E0B4" stroke="#548235" stroke-width="1.3"/>
+  <path d="M778 124 v12 h12" fill="none" stroke="#548235" stroke-width="1.3"/>
+  <text x="648" y="146" font-size="12" font-weight="bold">Prompt template</text>
+  <text x="648" y="163" font-size="11">&#8220;Is this true: h r t ?&#8221;</text>
+  <text x="648" y="177" font-size="11" fill="#555">&#8594; Yes / No &#183; same in all arms</text>
+
+  <rect x="644" y="206" width="152" height="12" rx="2" fill="#BDD7EE" stroke="#2E75B6" stroke-width="1"/>
+  <rect x="638" y="218" width="152" height="12" rx="2" fill="#9DC3E6" stroke="#2E75B6" stroke-width="1"/>
+  <rect x="632" y="230" width="152" height="46" rx="3" fill="#DEEBF7" stroke="#2E75B6" stroke-width="1.4"/>
+  <text x="642" y="248" font-size="12" font-weight="bold">Qwen2.5-1.5B-Instruct</text>
+  <text x="642" y="264" font-size="11">LoRA r=8 &#945;=16 &#183; q, v proj</text>
+  <path d="M800 240 l14 0 M800 240 l-4 -4 M800 240 l-4 4" stroke="#2E75B6" stroke-width="1.4" fill="none"/>
+  <text x="806" y="222" font-size="10" fill="#2E75B6">frozen base</text>
+
+  <rect x="632" y="290" width="158" height="60" rx="4" fill="#F2F2F2" stroke="#999" stroke-width="1.2"/>
+  <rect x="644" y="300" width="12" height="14" rx="2" fill="none" stroke="#777" stroke-width="1.3"/>
+  <path d="M647 300 v-4 a3 3 0 0 1 6 0 v4" fill="none" stroke="#777" stroke-width="1.3"/>
+  <text x="664" y="311" font-size="11" font-weight="bold">held constant</text>
+  <text x="642" y="328" font-size="11" fill="#333">seed, batch, LR, epochs,</text>
+  <text x="642" y="343" font-size="11" fill="#333">data size, decoding rule</text>
+
+  <!-- ================= LANE 4 : SCORING ================= -->
+  <path d="M886 120 l124 0 l16 26 l-16 26 l-124 0 l-16 -26 Z" fill="#E2EFDA" stroke="#548235" stroke-width="1.3"/>
+  <text x="948" y="141" text-anchor="middle" font-size="12" font-weight="bold">Triple classification</text>
+  <text x="948" y="156" text-anchor="middle" font-size="11">chance = 0.500</text>
+
+  <path d="M886 194 l124 0 l16 26 l-16 26 l-124 0 l-16 -26 Z" fill="#C5E0B4" stroke="#548235" stroke-width="2"/>
+  <text x="948" y="215" text-anchor="middle" font-size="12" font-weight="bold">Link prediction</text>
+  <text x="948" y="230" text-anchor="middle" font-size="11">50-way &#183; chance = 0.0900</text>
+
+  <rect x="870" y="272" width="158" height="52" rx="4" fill="#FFF2CC" stroke="#BF8F00" stroke-width="1.2"/>
+  <path d="M882 312 v-14 M892 312 v-22 M902 312 v-9" stroke="#BF8F00" stroke-width="2.6" stroke-linecap="round"/>
+  <text x="914" y="292" font-size="11" font-weight="bold">calibration</text>
+  <text x="914" y="307" font-size="11">ECE &#183; Brier &#183; SMI</text>
+
+  <text x="948" y="348" text-anchor="middle" font-size="11" fill="#555" font-style="italic">P(Yes) at the answer token</text>
+  <text x="948" y="363" text-anchor="middle" font-size="11" fill="#555" font-style="italic">no generation &#8594; format-free</text>
+
+  <!-- ================= OUTPUT ================= -->
+  <rect x="1054" y="196" width="118" height="88" rx="5" fill="#1F4E79"/>
+  <text x="1113" y="254" text-anchor="middle" font-size="36" font-weight="bold" fill="#fff">gap</text>
+
+  <!-- flow arrows -->
+  <line x1="115" y1="240" x2="146" y2="240" stroke="#555" stroke-width="1.5" marker-end="url(#a3)"/>
+  <line x1="394" y1="240" x2="418" y2="240" stroke="#555" stroke-width="1.5" marker-end="url(#a3)"/>
+  <line x1="618" y1="240" x2="630" y2="240" stroke="#555" stroke-width="1.5" marker-end="url(#a3)"/>
+  <line x1="794" y1="240" x2="868" y2="240" stroke="#555" stroke-width="1.5" marker-end="url(#a3)"/>
+  <line x1="1032" y1="240" x2="1050" y2="240" stroke="#555" stroke-width="1.5" marker-end="url(#a3)"/>
+
+  <!-- ================= QUESTION BUBBLES ================= -->
+  <ellipse cx="270" cy="534" rx="102" ry="26" fill="#FFFFFF" stroke="#2E75B6" stroke-width="1.1"/>
+  <text x="270" y="530" text-anchor="middle" font-size="11" font-style="italic">Which instances, and are they</text>
+  <text x="270" y="544" text-anchor="middle" font-size="11" font-style="italic">identical across every arm?</text>
+
+  <ellipse cx="518" cy="534" rx="94" ry="26" fill="#FFFFFF" stroke="#C55A11" stroke-width="1.4"/>
+  <text x="518" y="530" text-anchor="middle" font-size="11" font-style="italic">What does the prompt</text>
+  <text x="518" y="544" text-anchor="middle" font-size="11" font-style="italic">reveal about the entity?</text>
+
+  <ellipse cx="738" cy="534" rx="88" ry="26" fill="#FFFFFF" stroke="#2E75B6" stroke-width="1.1"/>
+  <text x="738" y="530" text-anchor="middle" font-size="11" font-style="italic">What does tuning</text>
+  <text x="738" y="544" text-anchor="middle" font-size="11" font-style="italic">actually install?</text>
+
+  <ellipse cx="948" cy="534" rx="94" ry="26" fill="#FFFFFF" stroke="#2E75B6" stroke-width="1.1"/>
+  <text x="948" y="530" text-anchor="middle" font-size="11" font-style="italic">How much survives when</text>
+  <text x="948" y="544" text-anchor="middle" font-size="11" font-style="italic">the names are removed?</text>
+
+  <!-- ================= FOOTER ================= -->
+  <line x1="20" y1="580" x2="1160" y2="580" stroke="#DDD" stroke-width="1"/>
+  <text x="20" y="604" font-size="13" fill="#333">Each condition is trained and scored as a <tspan font-weight="bold">separate arm</tspan>; every layer except Surface-Form Control is identical across arms.</text>
+  <text x="20" y="624" font-size="13" fill="#333">The contribution is not a model but a <tspan font-weight="bold">measurement</tspan>: one extra training run turns a single accuracy into a decomposition,</text>
+  <text x="20" y="644" font-size="13" fill="#333">and the pair (accuracy, gap) replaces accuracy as the unit of reporting.</text>
+  <text x="20" y="664" font-size="11" fill="#777">Results shown for YAGO3-10, 50-way filtered link prediction. Scope: one backbone at 1.5B parameters, single seed, 500 ranking queries.</text>
+</svg>

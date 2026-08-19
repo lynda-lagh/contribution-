@@ -70,6 +70,54 @@ def _kg_for(cond, dataset: str, root: str, seed: int):
     return kg
 
 
+def trivial_rule(types: dict[str, str], kg):
+    """
+    ★★ THE ONE-LINE RULE, MATCHED TO THE TAG FAMILY IN USE.
+
+    ✋ THE BUG THIS FIXES. The rule was hardcoded as
+
+            says_yes = types.get(tail) == f"{relation}::tail"
+
+    which is an INDUCED-tag pattern. `build_types` is now exogenous-first and
+    returns WordNet/wikicat classes (`football_team`, `administrative_district`).
+    That string can never equal `playsFor::tail`, so the rule answered No to
+    every row, scored exactly the negative base rate on a balanced set, and
+    printed **"clean"** — a pass that proves nothing. The audit that exists to
+    stop a silent artefact had itself become one.
+
+    The exogenous analogue of "does the tag name the relation" is "does the tag
+    match what this relation's tails normally ARE", learned from the training
+    edges only. Two strengths, and we report the stronger:
+
+      MODAL   tail class == the single most common tail class of r
+      RANGE   tail class in the SET of classes seen as tails of r
+              (range is the rule a type-constraint method actually implements,
+               and it is the harder floor to clear)
+    """
+    modal: dict[str, str] = {}
+    rng_: dict[str, set[str]] = {}
+    counts: dict[str, Counter] = {}
+    for t in kg.train:
+        c = types.get(t.tail)
+        if c is None:
+            continue
+        counts.setdefault(t.relation, Counter())[c] += 1
+        rng_.setdefault(t.relation, set()).add(c)
+    for r, c in counts.items():
+        modal[r] = c.most_common(1)[0][0]
+
+    # induced tags still exist as a fallback path in build_types, so detect
+    # rather than assume which family we were handed
+    sample = next((v for v in types.values() if v), "")
+    if "::" in sample:
+        return (lambda rel, tl: types.get(tl) == f"{rel}::tail",
+                "tail tag == '{r}::tail'  [induced]")
+
+    def _range(rel, tl):
+        return types.get(tl) in rng_.get(rel, ())
+    return _range, "tail class in the training RANGE of r  [exogenous]"
+
+
 def audit(cond_id: str, dataset: str, root: str, seed: int) -> dict | None:
     cond = CONDITIONS[cond_id]
     if not cond.types:
@@ -85,6 +133,7 @@ def audit(cond_id: str, dataset: str, root: str, seed: int) -> dict | None:
     kg = _kg_for(cond, dataset, root, seed)
     types = build_types(kg, cond, dataset)
     test = json.loads(path.read_text(encoding="utf-8"))
+    rule, rule_name = trivial_rule(types, kg)
 
     n = correct = 0
     pos_match = neg_match = n_pos = n_neg = 0
@@ -96,8 +145,7 @@ def audit(cond_id: str, dataset: str, root: str, seed: int) -> dict | None:
         if lab is None or rel is None:
             continue
         n += 1
-        # the trivial rule: does the tail's induced type name this relation?
-        says_yes = types.get(tl) == f"{rel}::tail"
+        says_yes = rule(rel, tl)
         truth_yes = lab == 1
         correct += says_yes == truth_yes
         if truth_yes:
@@ -126,7 +174,8 @@ def audit(cond_id: str, dataset: str, root: str, seed: int) -> dict | None:
     if acc >= 0.55:
         print(f"      → FLOOR for this condition is {acc:.1%}, not 50%. "
               f"Compare {cond_id} against {acc:.1%}, NOT against B.")
-    print(f"      P(tail tag == '{{r}}::tail')   positives {p_yes:.1%}   "
+    print(f"      rule: {rule_name}")
+    print(f"      P(rule fires)   positives {p_yes:.1%}   "
           f"negatives {p_no:.1%}   separation {abs(p_yes - p_no):.1%}")
     print(f"      n = {n:,}  ({n_pos:,} positive / {n_neg:,} negative)")
 
@@ -137,7 +186,7 @@ def audit(cond_id: str, dataset: str, root: str, seed: int) -> dict | None:
         for a, r, t in worst:
             print(f"        {a:6.1%}  {r}  (n={t})")
 
-    return {"condition": cond_id, "tag_only_accuracy": acc,
+    return {"condition": cond_id, "rule": rule_name, "tag_only_accuracy": acc,
             "p_match_positive": p_yes, "p_match_negative": p_no,
             "separation": abs(p_yes - p_no), "n": n, "verdict": verdict}
 

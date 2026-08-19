@@ -1,35 +1,14 @@
 %=============================================================================
 %  IEEE conference paper — 10 pages including references.
 %
-%  ═══════════════════════════════════════════════════════════════════════════
-%  VERSION 2 — restructured after the pipeline changes of August 2026.
+%  TITLE: left empty on purpose. Four options are listed below; option (1) is
+%  recommended. IEEE titles are plain noun phrases, not questions: of the Q1
+%  papers in our corpus, none uses a question title, and all use the classic
+%  I-Introduction / II-Related Work / III-Method / IV-Experiments / V-Conclusion
+%  skeleton. This paper follows that convention.
 %
-%  WHAT MOVED SINCE VERSION 1 (main.tex.v1-backup):
-%
-%   1. TYPE SOURCE.  Type tags were INDUCED from the graph ([relation:position]).
-%      They are now EXOGENOUS: YAGO's own rdf:type assertions into the WordNet
-%      class hierarchy.  This is a new Method subsection (III-C) and it changes
-%      what conditions C, D, E and G can claim.  Their numbers must be re-run.
-%
-%   2. CONDITION S.  chapter1/rank.py ignored cond.shuffle, so S was ranked on
-%      the REAL graph.  Every S figure — and therefore the whole of Table IV,
-%      the abstract's 94.0/71.5, Fig. 1 and the Discussion — is PROVISIONAL
-%      until the re-rank lands.  Marked \pv{} throughout.
-%
-%   3. CONTEXT VARIANTS P5-P7 (relation text, K=5 neighbours, paths) are new.
-%      New Method subsection III-E and new rows in Table III.
-%
-%   4. COMPARISON WITH THE PUBLISHED PIPELINE is new: Table VI places our WN11
-%      row inside KG-LLM's own Table II.
-%
-%   5. EXTRA CLASSIFICATION METRICS (AUC, F1, McNemar) added to Table V.
-%
-%  ⚠️ EVERY \pv{...} AND \pend IS A NUMBER THAT IS NOT YET TRUSTWORTHY.
-%     They render in red.  The paper cannot be submitted while any remain.
-%     Delete \pvbanner once the list is empty.
-%  ═══════════════════════════════════════════════════════════════════════════
-%
-%  TITLE: option (1) is active. Alternatives kept below.
+%   (1)  Names, Not Rules: Diagnosing Memorisation in Language Model
+%        Knowledge Graph Link Prediction                     <-- RECOMMENDED
 %   (2)  What Instruction Tuning Installs for Knowledge Graph Link Prediction
 %   (3)  An Anonymisation Diagnostic for Language Model Knowledge Graph
 %        Completion
@@ -49,26 +28,14 @@
 \usepackage{multirow}
 \usepackage{url}
 \usepackage[table]{xcolor}
+% Dependency-free horizontal bar: \mrrbar{fraction}{shade}
+\newcommand{\mrrbar}[2]{\textcolor{black!#2}{\rule{#1\linewidth}{6pt}}}
 \def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
     T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
 
-% ── PROVISIONAL-VALUE MACHINERY ─────────────────────────────────────────────
-% \pv{x}  a number that EXISTS but was produced by code since found to be
-%         wrong, or under a design since replaced.  Must be re-measured.
-% \pend   a number that has not been measured at all.
-% Both are red.  Comment out the two definitions below and uncomment the
-% "final" pair to typeset a clean PDF for a reading pass.
-% \ensuremath, not $...$: \pv is used INSIDE math ($0.7465\rightarrow\pv{0.6410}$)
-% as well as outside it, and a literal $ there closes and reopens math mode.
-\newcommand{\pv}[1]{\textcolor{red}{#1\ensuremath{^{\ast}}}}
-\newcommand{\pend}{\textcolor{red}{\textbf{??}}}
-% \newcommand{\pv}[1]{#1}
-% \newcommand{\pend}{--}
-
 \begin{document}
 
-\title{\textbf{Names, Not Rules: Diagnosing Memorisation in Language Model
-Knowledge Graph Link Prediction}}
+\title{\textbf{[TITLE --- choose one from the comment block above]}}
 
 % NOTE: a line break followed by a literal "[" is parsed as \\[length].
 % Placeholders are therefore braced. Keep the braces when filling them in.
@@ -86,21 +53,6 @@ Knowledge Graph Link Prediction}}
 
 \maketitle
 
-% ── DELETE THIS BLOCK BEFORE SUBMISSION ─────────────────────────────────────
-\newcommand{\pvbanner}{%
-\begin{center}\fcolorbox{red}{red!5}{\parbox{0.95\linewidth}{%
-\footnotesize\textcolor{red}{\textbf{DRAFT — NOT FOR CIRCULATION.}}
-Values marked $^{\ast}$ were produced before two corrections and must be
-re-measured: (i)~\texttt{rank.py} did not apply the permutation, so every
-condition~S ranking figure was computed on the unpermuted graph;
-(ii)~type tags were induced from the graph under test and are now taken from
-YAGO's own class assertions, so conditions C, D, E and G must be rebuilt.
-Values marked \textbf{??} have not been measured. Delete
-\texttt{\textbackslash pvbanner} and the \texttt{\textbackslash pv} colouring
-once neither remains.}}\end{center}\vspace{4pt}}
-\pvbanner
-% ────────────────────────────────────────────────────────────────────────────
-
 %=============================================================================
 \begin{abstract}
 Instruction tuning is now the standard way to adapt large language models to
@@ -112,17 +64,14 @@ replaced by an opaque identifier, so that relational structure survives while
 surface form does not. Reporting accuracy on the original and anonymised test
 sets as a pair splits a single figure into a memorisation term and a residual
 knowledge term. Evaluated as link prediction, where the chance level is an order
-of magnitude below the classification floor, \pv{94.0}\,\% of above-chance skill
-on YAGO3-10 is entity surface form. A permuted-name control localises this
-further: \pv{71.5} points of it come from the binding between a name and a graph
-node rather than from the readability of the text. A familiarity split places
-that binding in the pretrained backbone rather than in the fine-tuning set. Type
-text drawn from an independent source does not substitute for names, and
-supplying it alongside names costs \pv{7.3} accuracy points; neither does
-neighbourhood context, once the context block is prevented from restating the
-answer. Results are reported for a single 1.5-billion-parameter backbone at one
-seed. The diagnostic requires no change to the method under test, and the code
-is released.
+of magnitude below the classification floor, 94.0\,\% of above-chance skill on
+YAGO3-10 is entity surface form. A permuted-name control localises this further:
+71.5 points of it come from the binding between a name and a graph node rather
+than from the readability of the text. A familiarity split places that binding
+in the pretrained backbone rather than in the fine-tuning set. Type text does not
+substitute for names, and supplying it alongside names costs 7.3 accuracy points.
+Results are reported for a single 1.5-billion-parameter backbone at one seed. The
+diagnostic requires no change to the method under test, and the code is released.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -155,18 +104,6 @@ original graph and once on an anonymised copy, and report accuracy on both test
 sets as a pair. The difference between them is the share of performance carried
 by surface form.
 
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\linewidth]{fig1_diagnostic.pdf}
-\caption{The diagnostic. Three arms differ only in entity surface form; the
-relations, the graph structure, the adaptation recipe and the token budget are
-identical, and the same tuned model scores all three. The measurement is the
-\emph{gap} between arms, not any single accuracy. Fifty-way filtered link
-prediction on YAGO3-10, chance $\mathrm{MRR}=0.0900$ by \eqref{eq:chance}.
-\textcolor{red}{The permuted row is provisional; see the draft banner.}}
-\label{fig:diagnostic}
-\end{figure*}
-
 This paper makes four contributions.
 
 \emph{A decomposition rather than a score.} We split above-chance performance
@@ -177,7 +114,7 @@ without a dispersion.
 
 \emph{A seven-condition grid} varying one factor at a time --- names, type
 information, negative hardness, negative count --- with the interpretation of
-every outcome recorded in the released code beside the grid itself.
+every outcome fixed before the runs.
 
 \emph{Three instruments that fail differently.} Permuted real names, a seen and
 unseen familiarity split that leaves names intact, and calibration, which reads
@@ -193,10 +130,10 @@ $\mathrm{MRR}=0.0900$ under the 50-way protocol. The principal result of this
 paper is therefore a link prediction result.
 
 %=============================================================================
-\section{Related Work}
+\section{Background and Related Work}
 \label{sec:bg}
 
-\subsection{Completion, enrichment, and task variants}
+\subsection{Completion as a subtask of enrichment}
 
 We use \emph{enrichment} for any operation that adds information to a graph, and
 \emph{completion} for the subclass that adds edges over a fixed vocabulary of
@@ -207,7 +144,7 @@ benchmark cases.
 
 Within completion, four task variants recur: triple classification (decide
 whether a stated triple holds), entity or link prediction (produce the missing
-argument), relation prediction, and triple set prediction \cite{tsp}. They are not
+argument), relation prediction, and triple set prediction. They are not
 interchangeable. Their chance levels differ by orders of magnitude, and only the
 last three produce a completion.
 
@@ -243,9 +180,9 @@ primary, retaining classification because it is what the literature under study
 uses. Fifty-way Hits@$K$ is not comparable to full-ranking Hits@$K$, and every
 caption states the protocol.
 
-\subsection{Instruction-tuned completion}
+\subsection{Related work}
 
-KG-LLM \cite{kgllm,kgllama} fine-tunes
+\emph{Instruction-tuned completion.} KG-LLM \cite{kgllm,kgllama} fine-tunes
 LLaMA and ChatGLM with LoRA \cite{lora} on prompts derived from KG-BERT
 \cite{kgbert}, and is the system we reconstruct. Knit \cite{knit} is its closest
 descendant, projecting KGE vectors into the token embedding space on the same
@@ -255,22 +192,14 @@ quantify: predictions that are structurally implausible yet semantically
 plausible, arising from ``over-reliance on the language model's parametric
 knowledge rather than graph evidence.'' Neither measures parametric reliance.
 
-\subsection{Context enrichment and prompting}
-
-CATS \cite{cats} supplies reasoning paths and
+\emph{Context and prompting.} CATS \cite{cats} supplies reasoning paths and
 type constraints, RealKGC \cite{realkgc} relation-constrained structure blocks,
 GS-KGC \cite{gskgc} subgraph neighbourhoods, KICGPTv2 \cite{kicgptv2}
 in-context demonstrations, struOKGC \cite{struokgc} relation-specific templates,
-APE \cite{ape} auto-generated prompts, and ToC \cite{toc} LLM-guided context for
-inductive relation prediction. All add context; none removes the
+and APE \cite{ape} auto-generated prompts. All add context; none removes the
 entity name, so none can separate a context effect from a familiarity effect.
-KG-LLM itself belongs in this list: its largest single reported gain on
-YAGO3-10 comes from sampling $K=5$ neighbouring entities into the prompt. We
-reproduce that mechanism in Section~\ref{sec:context} rather than assume it.
 
-\subsection{Contamination, memorisation, and shortcut learning}
-
-KG-CF \cite{kgcf} is the closest prior use of the
+\emph{Contamination.} KG-CF \cite{kgcf} is the closest prior use of the
 instrument. One ablation replaces the entity names inside its path trajectories
 with opaque labels, keeps the relations, and reports a drop that the authors read
 as evidence of leakage. It differs from ours in three ways. The query head and
@@ -283,7 +212,7 @@ in intermediate representations with sliced mutual information; that instrument
 locates \emph{where} label information sits, not \emph{which} input property
 supplies it.
 
-A model prefers a feature that is available,
+\emph{Shortcut learning.} A model prefers a feature that is available,
 sufficient and cheap over one that is none of these \cite{geirhos2020}. Entity
 names on a transductive benchmark are all three.
 
@@ -305,7 +234,7 @@ compute cost alongside accuracy.}
 \textbf{System} & \textbf{Task} & \textbf{Adapt} & \textbf{Context} &
 \textbf{Name ctrl.} & \textbf{Cost} \\
 \midrule
-KG-LLM \cite{kgllm}      & TC, LP & \checkmark & \checkmark &            &            \\
+KG-LLM \cite{kgllm}      & TC, LP & \checkmark &            &            &            \\
 Knit \cite{knit}         & TC, LP & \checkmark & \checkmark &            &            \\
 EGIT \cite{egit}         & LP     & \checkmark & \checkmark &            &            \\
 FLAME \cite{flame}       & LP     & \checkmark &            &            &            \\
@@ -324,8 +253,7 @@ KG-CF \cite{kgcf}        & LP     &            & \checkmark & partial    &      
 
 \vspace{2pt}
 {\footnotesize TC = triple classification, LP = link prediction,
-RP = relation prediction. \emph{Name ctrl.} counts a condition applied to the
-reported headline figure; KG-CF applies one to a single component.}
+RP = relation prediction.}
 \end{table}
 
 %=============================================================================
@@ -381,88 +309,15 @@ negative. Stage 8 is the chance level, which the $N$-way protocol changes by an
 order of magnitude (Section~\ref{sec:protocol}). Neither is a modelling choice,
 and both move the reported number.
 
-\subsection{Where the type information comes from}
-\label{sec:types}
-
-Half the conditions add a type tag to each entity, and the source of that tag
-decides what they can establish. We distinguish two, and use only the second.
-
-An \emph{endogenous} type is computed from the graph under test. The natural
-construction --- and the one we used first --- labels each entity by the
-(relation, argument-position) pair it occupies most often, giving tags such as
-\texttt{[wasBornIn : tail]}. It is cheap, it needs no external resource, and it
-is circular: the tag is a summary of the very edges the model is asked to
-predict. The circularity is measurable. On our first YAGO3-10 negatives, the
-one-line rule \emph{answer yes if the candidate tail's tag names the query
-relation} scored 62.4\,\% with no model at all
-(Section~\ref{sec:artefacts}). A condition built on such tags cannot separate
-type reasoning from label leakage.
-
-An \emph{exogenous} type comes from a source that does not depend on the
-completion task. YAGO3-10 has one: YAGO \cite{suchanek2007} ships
-\texttt{rdf:type} assertions linking each entity to a leaf class of the WordNet
-hierarchy, so
-\emph{Alastair\_Sim} carries \texttt{[actor]} and \emph{London}
-\texttt{[city]}. We take the \texttt{yagoSimpleTypes} theme of the YAGO~3
-release, one class per entity, and treat an entity without an assertion as
-\texttt{OTHER} rather than guessing. Coverage on the 123{,}182 entities of
-YAGO3-10 is 99.9\,\%, over 286 distinct classes, with 0.1\,\% \texttt{OTHER};
-the type file is written only if it covers 90\,\% of the entity set, so a
-silent downgrade to induced tags cannot occur.
-
-Two properties of that inventory bound what the typed conditions can show, and
-we report them rather than treat 99.9\,\% coverage as sufficient. It is
-\emph{concentrated}: the largest class alone covers 37.9\,\% of entities and the
-top five 71.2\,\%, and because YAGO's WordNet and Wikipedia-category layers name
-the same notion differently (\texttt{people} and \texttt{person} are separate
-classes, alongside \texttt{artist}, \texttt{writer}, \texttt{scientist} and
-\texttt{officeholder}), roughly half of all entities carry some class meaning
-``a person''. And it is \emph{mixed in provenance}: 57\,\% of the labels come
-from the WordNet layer and 43\,\% from a head-noun reduction of Wikipedia
-category names, which is exogenous but noisier. A null on condition~C is
-therefore a statement about this inventory, not about semantic types in general.
-
-Two properties are required of any tag we use. It must be \emph{anonymisation
-invariant}: the tag is a class name, never an entity name, so
-\texttt{entity4471 [actor]} discloses a category and not an identity, and
-conditions B and C differ in exactly one respect. And its residual leakage must
-be \emph{measured, not assumed}: we regenerate the test negatives to be
-type-consistent and re-run the one-line rule, admitting a condition only when
-that rule sits near its 0.5 floor.
-
-WN11 has no such source. Its relations \emph{are} its taxonomy
-(\texttt{\_type\_of}, \texttt{\_member\_holonym}), so any type derived for it is
-endogenous by construction; the audit in Section~\ref{sec:artefacts} confirms
-this. We therefore report no typed condition on WN11, and all type results in
-this paper are YAGO3-10 results.
-
 \subsection{Condition grid}
 \label{sec:grid}
 
-Table~\ref{tab:cond} lists the seven conditions and Fig.~\ref{fig:conditions}
-shows the prompts they produce. Each varies one factor from the baseline. The
-interpretation of every possible outcome is declared in the released code
-beside the grid that defines the conditions, so a result cannot be reassigned a
-meaning after it is seen; we make no claim to a registered protocol beyond that.
-
-% ⚠️ fig2_conditions.svg still renders the INDUCED tags. Regenerate it from the
-%    exogenous builder before submission; the caption below describes the
-%    intended figure.
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\linewidth]{fig2_conditions.pdf}
-\caption{The condition grid instantiated on one test triple. Prompts are
-verbatim output of the released builder. Type tags are \emph{exogenous}: they
-are YAGO's own \texttt{rdf:type} assertions into the WordNet class hierarchy,
-not statistics of the edges under test (Section~\ref{sec:types}). Condition~E is
-greyed because it produced a degenerate classifier.
-\textcolor{red}{Figure to be regenerated from the exogenous builder.}}
-\label{fig:conditions}
-\end{figure*}
+Table~\ref{tab:cond} lists the seven conditions. Each varies one factor from the
+baseline, and the interpretation of every outcome was fixed in the released code
+before the runs.
 
 \begin{table}[t]
-\caption{Condition grid. Each row changes one factor from A. Types are
-exogenous throughout (Section~\ref{sec:types}).}
+\caption{Condition grid. Each row changes one factor from A.}
 \label{tab:cond}
 \centering
 \footnotesize
@@ -480,35 +335,6 @@ S & permuted  & no  & name-to-node \emph{binding}, not readability \\
 \bottomrule
 \end{tabular}
 \end{table}
-
-\subsection{Context variants}
-\label{sec:context}
-
-The conditions above change what the model is \emph{trained} on. A second,
-orthogonal family changes what it is \emph{asked}, and lets us reproduce the
-context mechanisms of Section~\ref{sec:bg} inside the same measurement frame.
-Beyond the plain prompt P0 we evaluate three: P5 prepends a one-sentence
-description of what the query relation means, hand-written and therefore
-exogenous; P6 prepends $K=5$ facts about the head entity, which is KG-LLM's own
-mechanism and the source of its largest reported YAGO3-10 gain; P7 prepends up
-to three relation chains linking the head to the candidate, in the manner of
-CATS and KG-CF.
-
-A context block that mentions the answer measures nothing, and the obvious guard
-is insufficient. Excluding the target entity still admits the mirror fact: if
-the query is $(h, r, ?)$ with gold $t$, a neighbour edge $(t, r^{-1}, h)$ states
-the answer outright in the opposite direction. Our guard therefore excludes
-four things from every block --- the gold entity, every edge on the query
-relation, every edge on its inverse, and the query triple itself --- and is
-validated by an assertion that no block over a held-out sample contains the
-gold string. The same assertion is run in the reverse direction to confirm the
-guard is not simply emptying the block.
-
-Two readings are available and they differ in strength. Evaluating a P0-trained
-checkpoint under P5--P7 is cheap but asymmetric: an increase is interpretable,
-a decrease may be distribution shift rather than inability, since the model was
-tuned on one format and shown another. We therefore also \emph{train} a
-condition on P6, which removes the asymmetry at the cost of one further run.
 
 \subsection{Corroborating instruments}
 \label{sec:instruments}
@@ -542,21 +368,17 @@ decoding yields a set rather than an order, so ranking metrics are not directly
 available from the generations themselves.
 
 %=============================================================================
-\section{Experiments}
+\section{Experimental Setup}
 \label{sec:setup}
-
-\subsection{Setup}
 
 \emph{Datasets.} YAGO3-10 (123{,}182 entities, 37 relations) is primary and WN11
 (38{,}588 entities, 11 relations) secondary. YAGO3-10's relations are strongly
 typed --- \texttt{wasBornIn} maps a person to a place, \texttt{playsFor} a
-person to a club --- which is the structure the type conditions require, and it
-is the only one of the two with an exogenous type source
-(Section~\ref{sec:types}). Running both is a decomposition rather than a
-replication: memorising on WN11 is lexical, on YAGO3-10 world-factual.
+person to a club --- which is the structure the type conditions require and
+which WN11's lexical relations lack. Running both is a decomposition rather than
+a replication: memorising on WN11 is lexical, on YAGO3-10 world-factual.
 
-\emph{Model and tuning.} Qwen2.5-1.5B-Instruct \cite{qwen} with LoRA
-\cite{lora}, $r=8$,
+\emph{Model and tuning.} Qwen2.5-1.5B-Instruct with LoRA \cite{lora}, $r=8$,
 $\alpha=16$, on the query and value projections, two epochs over 20{,}000
 instances, effective batch 32, learning rate $3\times10^{-4}$. The size is
 matched to the sub-7B ablations of \cite{cats} and \cite{gskgc}. Weights are
@@ -568,55 +390,33 @@ training loss of exactly zero and resembles a completed run.
 and chance is 0.5. Ranking uses 500 queries, 50-way, filtered against
 train~$\cup$~valid~$\cup$~test, giving 25{,}000 scored candidates per condition.
 All figures use the generation-free decision rule, which is format-independent
-by construction. A preflight stage refuses to start a run whose test labels are
-missing or unbalanced, whose type coverage is below threshold, whose measured
-tag-only floor is unrecorded, or whose permuted arm does not differ from its
-baseline; each of those checks corresponds to a failure that occurred silently
-during this work.
+by construction.
 
-\subsection{Two artefacts removed before use}
-\label{sec:artefacts}
-
-\emph{Type-tag leakage.} Auditing the type prompt showed that on
+\emph{An artefact removed before use.} Auditing the type prompt showed that on
 the original YAGO3-10 negatives a single rule --- if the candidate tail's type
 tag names the query relation, answer yes --- scored 62.4\,\% with no model at
 all. Regenerating the test negatives type-consistently reduced that rule to
-\pv{51.3}\,\% against a 0.5 floor, with a positive/negative match separation of
-\pv{0.026}; the typed conditions below use the regenerated set. Both figures
-were measured on induced tags and are being re-measured for the exogenous
-inventory, where the corresponding trivial rule is not ``the tag names the
-relation'' but ``the tail's class lies in the training range of the relation''.
-The same audit on
+51.3\,\% against a 0.5 floor, with a positive/negative match separation of
+0.026; the typed conditions below use the regenerated set. The same audit on
 WN11 returns 56.8\,\% with a separation of 0.136, concentrated in the taxonomic
 relations (\texttt{\_type\_of} 72.5\,\%, \texttt{\_member\_holonym} 71.4\,\%),
-which are exactly those a type-augmentation method would claim to help, and is
-the empirical form of the argument in Section~\ref{sec:types} that WN11 admits
-no exogenous type source. An unmeasured floor of this size is silently added to
-every typed result.
-
-\emph{Mirror facts in context blocks.} The neighbour and path blocks of
-Section~\ref{sec:context} were first built with the conventional guard, which
-excludes the target entity. Auditing 150 blocks found the gold answer present in
-24 of them, supplied by edges on the inverse of the query relation. With the
-four-part guard in place the same audit returns 0 of 150, while a
-complementary check confirms the blocks remain non-empty. A context result
-measured before this correction would have reported the leak as a gain.
+which are exactly those a type-augmentation method would claim to help. We
+therefore report \emph{no} typed condition on WN11. An unmeasured floor of this
+size is silently added to every typed result.
 
 %=============================================================================
-\subsection{Link prediction}
+\section{Results}
 \label{sec:results}
 
-All figures below are single runs of one backbone. Where a condition
-produced a degenerate classifier we say so and withhold it from
-interpretation.
+All figures are single runs of one backbone. Where a condition produced a
+degenerate classifier we say so and withhold it from interpretation.
+
+\subsection{Link prediction}
 
 \begin{table}[t]
 \caption{Link prediction on YAGO3-10. 500 queries, 50-way filtered against a
 pool of 123{,}182 entities. Fifty-way Hits@$K$ is not comparable to
-full-ranking Hits@$K$. The untuned row is the same backbone with no adapter and
-establishes what the pretrained model alone supplies; the P5--P7 rows re-score
-the condition~A checkpoint under the context blocks of
-Section~\ref{sec:context}.}
+full-ranking Hits@$K$.}
 \label{tab:rank}
 \centering
 \footnotesize
@@ -624,23 +424,10 @@ Section~\ref{sec:context}.}
 \toprule
 & & \textbf{MRR} & \textbf{H@1} & \textbf{H@3} & \textbf{H@10} & \textbf{MR} \\
 \midrule
-\multicolumn{7}{@{}l}{\emph{tuned, plain prompt}}\\
 real names     & A & \textbf{0.8169} & 0.714 & 0.898 & 0.994 & 1.72 \\
-permuted names & S & \pv{0.2974} & \pv{0.198} & \pv{0.306} & \pv{0.498} & \pv{15.65} \\
+permuted names & S & 0.2974 & 0.198 & 0.306 & 0.498 & 15.65 \\
 anonymised     & B & 0.1336 & 0.050 & 0.114 & 0.272 & 23.05 \\
-anon.\ + types & C & \pv{0.0945} & \pv{0.026} & \pv{0.068} & \pv{0.194} & \pv{26.71} \\
-\midrule
-\multicolumn{7}{@{}l}{\emph{untuned backbone, no adapter}}\\
-real names     & A & \pend & \pend & \pend & \pend & \pend \\
-anonymised     & B & \pend & \pend & \pend & \pend & \pend \\
-\midrule
-\multicolumn{7}{@{}l}{\emph{condition A re-scored under context}}\\
-relation text  & P5 & \pend & \pend & \pend & \pend & \pend \\
-$K{=}5$ neigh. & P6 & \pend & \pend & \pend & \pend & \pend \\
-paths          & P7 & \pend & \pend & \pend & \pend & \pend \\
-\midrule
-\multicolumn{7}{@{}l}{\emph{trained on P6}}\\
-$K{=}5$ neigh. & A & \pend & \pend & \pend & \pend & \pend \\
+anon.\ + types & C & 0.0945 & 0.026 & 0.068 & 0.194 & 26.71 \\
 \midrule
 \multicolumn{2}{@{}l}{chance} & 0.0900 & 0.020 & 0.060 & 0.200 & 25.50 \\
 \bottomrule
@@ -649,20 +436,10 @@ $K{=}5$ neigh. & A & \pend & \pend & \pend & \pend & \pend \\
 
 Table~\ref{tab:rank} separates the conditions by an order of magnitude. The mean
 rank column states the collapse plainly: with real names the gold tail sits at
-rank 1.72 of 50; with names permuted it falls to \pv{15.65}, anonymised to
-23.05, and with type tags added to the anonymised prompt to \pv{26.71}, beyond
-the 25.5 that random ordering produces. Condition C fails to help; whether it
-actively harms is not resolved at this sample size (see below).
-
-The untuned rows separate two things that a tuned-only table confounds. Any
-above-chance ranking they show is supplied by pretraining and by the 50-way
-candidate pool, not by our adaptation, and the tuned$-$untuned difference is the
-part attributable to instruction tuning at all.
-
-The context rows test whether the mechanisms of Section~\ref{sec:bg} recover
-what anonymisation removes. Because a decrease on a P0-trained checkpoint is
-not interpretable (Section~\ref{sec:context}), only the P6 training row licenses
-a two-sided reading.
+rank 1.72 of 50; with names permuted it falls to 15.65, anonymised to 23.05, and
+with type tags added to the anonymised prompt to 26.71, beyond the 25.5 that
+random ordering produces. Condition C fails to help; whether it actively harms
+is not resolved at this sample size (see below).
 
 \subsection{Decomposition}
 
@@ -678,7 +455,7 @@ m(A)-c = \underbrace{[m(A)-m(S)]}_{\text{binding}}
 \begin{table}[t]
 \caption{Decomposition of above-chance ranking skill on YAGO3-10. The three
 terms sum to 100\,\% by construction; how the mass distributes across them does
-not. Every row depends on $m(S)$ and is provisional.}
+not.}
 \label{tab:decomp}
 \centering
 \footnotesize
@@ -688,8 +465,8 @@ not. Every row depends on $m(S)$ and is provisional.}
 \midrule
 total above chance, $m(A)-c$        & 0.7269 & 100.0\,\% \\
 \midrule
-names permuted, $A\!\to\!S$         & \pv{0.5195} & \pv{\textbf{71.5\,\%}} \\
-names removed, $S\!\to\!B$          & \pv{0.1638} & \pv{22.5\,\%} \\
+names permuted, $A\!\to\!S$         & 0.5195 & \textbf{71.5\,\%} \\
+names removed, $S\!\to\!B$          & 0.1638 & 22.5\,\% \\
 residual, $m(B)-c$                  & 0.0436 & \textbf{6.0\,\%} \\
 \midrule
 memorisation share                  & 0.6833 & \textbf{94.0\,\%} \\
@@ -697,48 +474,69 @@ memorisation share                  & 0.6833 & \textbf{94.0\,\%} \\
 \end{tabular}
 \end{table}
 
+\begin{figure}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{2pt}
+\begin{tabular}{@{}l@{\hspace{4pt}}p{0.60\linewidth}@{\hspace{4pt}}r@{}}
+\multicolumn{3}{@{}l}{\textbf{(a) MRR, drawn from the 50-way chance floor}}\\[3pt]
+A real names   & \mrrbar{1.00}{85} & 0.8169 \\
+S permuted     & \mrrbar{0.285}{85} & 0.2974 \\
+B anonymised   & \mrrbar{0.060}{85} & 0.1336 \\
+C anon.+types  & \mrrbar{0.006}{85} & 0.0945 \\[2pt]
+\multicolumn{3}{@{}l}{\scriptsize A bar drawn from zero would give C a visible
+length; drawn from}\\
+\multicolumn{3}{@{}l}{\scriptsize chance (0.0900) it correctly shows nothing.}\\[8pt]
+\multicolumn{3}{@{}l}{\textbf{(b) Where the 0.7269 of above-chance skill goes}}\\[3pt]
+binding      & \mrrbar{0.715}{80} & 71.5\,\% \\
+readability  & \mrrbar{0.225}{50} & 22.5\,\% \\
+residual     & \mrrbar{0.060}{20} & \phantom{0}6.0\,\% \\
+\end{tabular}
+\caption{Link prediction on YAGO3-10. (a) All four conditions against the
+$\mathrm{MRR}=0.0900$ floor of \eqref{eq:chance}. (b) The additive
+decomposition: the binding between a name and a node accounts for 71.5\,\% of
+above-chance skill, the readability of names for 22.5\,\%, and everything that
+survives both controls for 6.0\,\%.}
+\label{fig:decomp}
+\end{figure}
+
 Three readings follow. First, the permuted-name control carries the argument:
 every name remains real and readable, only the assignment is deranged, and
-performance still falls by \pv{71.5}\,\% of all above-chance skill. What the
-model uses is therefore predominantly which string sits on which node, not the
-readability of the strings, though readability accounts for a further
-\pv{22.5}\,\% and is not negligible. Second, the residual is small in absolute
-terms. After both controls, $\mathrm{MRR}=0.1336$ against a floor of 0.0900.
-Note that the memorisation share, $[m(A)-m(B)]/[m(A)-c] = 94.0$\,\%, does not
-depend on S; only its division into binding and readability does. Third, type
-text does not substitute for names: C exceeds chance by \pv{0.0045} and ranks
-below B, on a test set whose tag-only floor was measured at \pv{0.513} with a
-separation of 0.026, so the leak audited in Section~\ref{sec:artefacts} does not
-explain the result.
+performance still falls by 71.5\,\% of all above-chance skill. What the model
+uses is therefore predominantly which string sits on which node, not the
+readability of the strings, though readability accounts for a further 22.5\,\%
+and is not negligible. Second, the residual is small in absolute terms. After
+both controls, $\mathrm{MRR}=0.1336$ against a floor of 0.0900. Third, type text
+does not substitute for names: C exceeds chance by 0.0045 and ranks below B, on
+a test set whose tag-only floor was measured at 0.513 with a separation of
+0.026, so the leak audited in Section~\ref{sec:setup} does not explain the
+result.
 
 \subsection{Triple classification}
 
 \begin{table}[t]
 \caption{Triple classification, 2000 balanced test triples, chance 0.5. TPR and
-TNR are recovered from accuracy and positive rate; AUC is threshold-free and
-therefore survives the collapse that destroys accuracy. Rows marked $\dagger$
-are degenerate and are excluded from interpretation. $p$ is a McNemar exact
-test against condition~A on the same triples.}
+TNR are recovered from accuracy and positive rate. Rows marked $\dagger$ are
+degenerate and are excluded from interpretation.}
 \label{tab:cls}
 \centering
 \footnotesize
-\begin{tabular}{@{}llrrrrrrr@{}}
+\begin{tabular}{@{}llrrrr@{}}
 \toprule
-& & \textbf{Acc.} & \textbf{Pos.} & \textbf{TPR} & \textbf{TNR} &
-\textbf{F1} & \textbf{AUC} & \textbf{$p$} \\
+& & \textbf{Acc.} & \textbf{Pos.\ rate} & \textbf{TPR} & \textbf{TNR} \\
 \midrule
-\multicolumn{9}{@{}l}{\emph{YAGO3-10}}\\
-baseline        & A & 0.7465 & 0.658 & 0.904 & 0.589 & \pend & \pend & --- \\
-trained anon.   & B & 0.6655 & 0.310 & 0.475 & 0.856 & \pend & \pend & \pend \\
-anon.\ + types  & C & \pv{0.5985} & \pv{0.760} & \pv{0.858} & \pv{0.339} & \pend & \pend & \pend \\
-hard negatives  & D & \pv{0.6410} & \pv{0.634} & \pv{0.775} & \pv{0.507} & \pend & \pend & \pend \\
-many neg.$^\dagger$ & E & \pv{0.5010} & \pv{0.001} & \pv{0.002} & \pv{1.000} & \pend & \pend & \pend \\
-real + types    & G & \pv{0.6735} & \pv{0.779} & \pv{0.952} & \pv{0.395} & \pend & \pend & \pend \\
-permuted names  & S & \pv{0.6030} & \pv{0.346} & \pv{0.449} & \pv{0.757} & \pend & \pend & \pend \\
+\multicolumn{6}{@{}l}{\emph{YAGO3-10}}\\
+baseline        & A & 0.7465 & 0.658 & 0.904 & 0.589 \\
+trained anon.   & B & 0.6655 & 0.310 & 0.475 & 0.856 \\
+anon.\ + types  & C & 0.5985 & 0.760 & 0.858 & 0.339 \\
+hard negatives  & D & 0.6410 & 0.634 & 0.775 & 0.507 \\
+many neg.$^\dagger$ & E & 0.5010 & 0.001 & 0.002 & 1.000 \\
+real + types    & G & 0.6735 & 0.779 & 0.952 & 0.395 \\
+permuted names  & S & 0.6030 & 0.346 & 0.449 & 0.757 \\
 \midrule
-\multicolumn{9}{@{}l}{\emph{WN11}}\\
-baseline        & A & \textbf{0.9265} & 0.488 & 0.914 & 0.939 & \pend & \pend & --- \\
-trained anon.   & B & 0.7255 & 0.590 & 0.815 & 0.636 & \pend & \pend & \pend \\
+\multicolumn{6}{@{}l}{\emph{WN11}}\\
+baseline        & A & \textbf{0.9265} & 0.488 & 0.914 & 0.939 \\
+trained anon.   & B & 0.7255 & 0.590 & 0.815 & 0.636 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -746,86 +544,32 @@ trained anon.   & B & 0.7255 & 0.590 & 0.815 & 0.636 & \pend & \pend & \pend \\
 Table~\ref{tab:cls} shows why we do not lead with this protocol. Condition E,
 which raises the number of negatives per positive, produced a model whose
 $P(\text{Yes})$ never exceeds 0.5 on any of the 2000 test triples: it answers
-negatively throughout and scores \pv{0.5010}, the negative base rate. Its
-nominal memorisation share is $-19.0$, an artefact of dividing by a gap that
-does not exist. We report E as a failure of the recipe at that negative ratio
-and draw no conclusion from it about negative count. The AUC column is included
-for exactly this case: a model whose scores order the triples correctly but
-whose threshold has collapsed is distinguishable from one that has learned
-nothing, and accuracy alone cannot tell them apart.
+negatively throughout and scores 0.5010, the negative base rate. Its nominal
+memorisation share is $-19.0$, an artefact of dividing by a gap that does not
+exist. We report E as a failure of the recipe at that negative ratio and draw no
+conclusion from it about negative count.
 
 The same pathology appears in the anonymised arms. On WN11, condition A
 evaluated on anonymised data answers affirmatively to 94.5\,\% of triples
 (TPR 0.946, TNR 0.056); on YAGO3-10, condition C's anonymised arm answers
-affirmatively to \pv{92.2}\,\%. In both cases the correct statement is that the
-model collapses onto a constant when names are removed, not that its accuracy
-fell to chance.
+affirmatively to 92.2\,\%. In both cases the correct statement is that the model
+collapses onto a constant when names are removed, not that its accuracy fell to
+chance.
 
 Two rows survive intact. Condition D shows that replacing random corruptions
-with type-consistent ones costs the baseline \pv{10.6} accuracy points
-($0.7465\rightarrow\pv{0.6410}$): a substantial part of the headline figure was
-the ease of the negatives. Condition G shows that adding type text when names
-are already present costs \pv{7.3} points and drives the classifier toward the
-affirmative class (TPR \pv{0.952}, TNR \pv{0.395}).
+with type-consistent ones costs the baseline 10.6 accuracy points
+($0.7465\rightarrow0.6410$): a substantial part of the headline figure was the
+ease of the negatives. Condition G shows that adding type text when names are
+already present costs 7.3 points and drives the classifier toward the affirmative
+class (TPR 0.952, TNR 0.395).
 
 The two protocols agree on every sign. Taking A against B evaluated on
 anonymised data ($0.7465$ vs $0.5080$, chance $0.5$) gives an above-chance signal
 of $0.2465$, of which $0.2385$ is removed by anonymisation: a memorisation share
 of 96.8\,\%, against 94.0\,\% from ranking. Condition C agrees more sharply
-still: its anonymised accuracy is \pv{$0.5160$} against the measured tag-only
-floor of \pv{$0.513$}, a margin of \pv{$+0.0030$}, and in ranking it exceeds chance by
-\pv{$+0.0045$}. Two protocols with different floors both place C at its floor.
-
-\subsection{Comparison with the published pipeline}
-\label{sec:kgllm}
-
-Table~\ref{tab:kgllm} places our reconstruction inside KG-LLM's own comparison
-table. The purpose is to establish that the pipeline we anonymise is the
-pipeline they describe, not a weakened stand-in: a diagnostic run on a broken
-reproduction would measure the breakage.
-
-\begin{table}[t]
-\caption{Triple classification accuracy (\%) on WN11. Selected rows of
-KG-LLM's Table~II \cite{kgllm}, reproduced with their citations, plus ours.
-FB13 is omitted because we did not run it.}
-\label{tab:kgllm}
-\centering
-\footnotesize
-\begin{tabular}{@{}lr@{}}
-\toprule
-\textbf{Method} & \textbf{WN11} \\
-\midrule
-TransE \cite{transe}              & 75.9 \\
-DistMult \cite{kgllm}             & 87.1 \\
-KG-BERT(a) \cite{kgbert}          & 93.5 \\
-KGT5 \cite{kgllm}                 & 72.8 \\
-LLaMA-7B (untuned) \cite{kgllm}   & 21.1 \\
-LLaMA-13B (untuned) \cite{kgllm}  & 28.1 \\
-KG-LLaMA-7B \cite{kgllm}          & 95.5 \\
-KG-LLaMA-13B \cite{kgllm}         & 95.6 \\
-KG-LLaMA2-13B \cite{kgllm}        & \textbf{96.6} \\
-\midrule
-ours, condition A (Qwen2.5-1.5B)  & 92.65 \\
-ours, condition B (anonymised)    & 72.55 \\
-\bottomrule
-\end{tabular}
-
-\vspace{2pt}
-{\footnotesize Our backbone is 1.5B against their 7B and 13B, and our WN11 run
-had not converged when training stopped, so 92.65 is a floor. Three cells of
-this table must not be filled from our results: FB13, which we never ran;
-YAGO3-10 classification, where our negatives are generated and theirs ship with
-the benchmark; and link prediction, where they rank against all 123{,}182
-entities and we against 50.}
-\end{table}
-
-Two comparisons in that table are worth stating explicitly. The untuned LLaMA
-rows, at 21.1 and 28.1, are far below chance, which is a format failure rather
-than a knowledge failure and is the phenomenon our decision-rule sweep
-quantifies in Section~\ref{sec:format}. And the distance from KG-BERT's 93.5 to
-KG-LLaMA2's 96.6 is 3.1 points, while anonymisation removes 20.1 points from
-our own reconstruction: the effect this paper measures is larger than the
-margin the literature competes over.
+still: its anonymised accuracy is $0.5160$ against the measured tag-only floor of
+$0.513$, a margin of $+0.0030$, and in ranking it exceeds chance by $+0.0045$.
+Two protocols with different floors both place C at its floor.
 
 \subsection{Familiarity split}
 
@@ -874,7 +618,6 @@ $0.607$, $0.500$ and $0.407$, so a predictor that always answers affirmatively
 scores a $+0.20$ raw gap having learned nothing.
 
 \subsection{Format, calibration, and representations}
-\label{sec:format}
 
 \begin{table}[t]
 \caption{WN11 accuracy under four decision rules applied to identical
@@ -904,17 +647,14 @@ protocol reports as untuned capability is an artefact of how the output is read;
 negatives, penalising the epistemically correct behaviour. After tuning the
 spread collapses to 0.0005 and every response is parseable. Instruction tuning's
 most reliable effect is on format, and a protocol that cannot separate format
-from knowledge will attribute the former to the latter. This is the mechanism
-behind the 21.1\,\% untuned LLaMA row of Table~\ref{tab:kgllm}.
+from knowledge will attribute the former to the latter.
 
 Calibration corroborates from a signal ranking does not use. Ranking uses the
 order of $P(\text{Yes})$ and is invariant to monotone rescaling; calibration uses
 its magnitude and is blind to order. When the binding is destroyed in condition
-S, mean confidence falls from 0.809 to \pv{0.511}, near indifference, while
-accuracy falls only to \pv{0.603} (expected calibration error \cite{guo2017}
-0.062 for A, \pv{0.092} for S). The model
-is not merely less accurate without the binding; it registers that it is
-guessing.
+S, mean confidence falls from 0.809 to 0.511, near indifference, while accuracy
+falls only to 0.603 (ECE 0.062 for A, 0.092 for S). The model is not merely less
+accurate without the binding; it registers that it is guessing.
 
 Sliced mutual information between hidden states and labels, measured on the two
 YAGO3-10 arms, separates them only late: 0.00736 versus 0.00725 at layer 7,
@@ -923,16 +663,14 @@ Removing entity names leaves early features untouched and removes roughly
 four-fifths of the label information present where a task decision would form.
 
 %=============================================================================
-\section{Discussion and Conclusion}
+\section{Discussion}
 \label{sec:disc}
 
-\subsection{What the gap means}
-
-The ranking view makes the answer unambiguous:
+\emph{What the gap means.} The ranking view makes the answer unambiguous:
 94.0\,\% of above-chance skill disappears when surface forms are replaced. The
 permuted-name control determines how this must be worded. Because S retains
 every real name and destroys only the assignment, and because it alone accounts
-for \pv{71.5}\,\% of the loss, the operative variable is the binding between a
+for 71.5\,\% of the loss, the operative variable is the binding between a
 surface form and a specific node, not the presence of natural-language text.
 This is the distinction an anonymisation-only experiment cannot draw. The
 familiarity split then locates where the binding was acquired: not during
@@ -940,46 +678,46 @@ fine-tuning, since withholding an entity moves balanced accuracy by $+0.0036$.
 In the vocabulary of \cite{geirhos2020}, the name is available, sufficient and
 cheaper than the relational computation, so it is the feature that gets used.
 
-\subsection{Types, negatives, and context}
-
-Condition C sits at chance, at \pv{0.0945} against a floor of 0.0900.
+\emph{Types.} Condition C sits at chance, at 0.0945 against a floor of 0.0900.
 Its point estimate is below B, but a paired bootstrap over per-query reciprocal
-ranks does not separate the two ($C-B=\pv{-0.027}$, 95\,\% CI
-$\pv{[-0.063,+0.009]}$), so we claim only that types fail to substitute for
-names, not that they are actively harmful in the ranking view. The remaining
-explanation is capacity: LoRA at $r=8$ may lack the room to install a type rule.
-It is no longer that the types are too weak to support one --- they are YAGO's
-own class assertions, external to the edges under test
-(Section~\ref{sec:types}), which is the strongest type signal this benchmark
-admits. A result obtained with induced tags would leave both explanations open;
-this one does not.
+ranks does not separate the two ($C-B=-0.027$, 95\,\% CI $[-0.063,+0.009]$), so
+we claim only that types fail to substitute for names, not that they are
+actively harmful in the ranking view. Two explanations remain open: LoRA at
+$r=8$ may lack the capacity to install a type rule, or our induced types may be
+too weak to support one. The inventory is heavily concentrated --- 65 types over
+123{,}182 entities, the largest covering 27.4\,\% and the top five 66.4\,\% ---
+so these results bound what \emph{induced} types can do, not what curated
+semantic types could.
 
-Condition G is worse than A by \pv{7.3} points, with the classifier pushed
-toward the affirmative class. Names are present in every condition that
-\cite{cats}, \cite{knit} and \cite{realkgc} compare, so their module-level
-ablations cannot separate a type-reasoning effect from a token-quantity effect.
-Our G isolates that comparison and finds the addition harmful at this scale.
+Condition G is worse than A by 7.3 points, with the classifier pushed toward the
+affirmative class. Names are present in every condition that \cite{cats},
+\cite{knit} and \cite{realkgc} compare, so their module-level ablations cannot
+separate a type-reasoning effect from a token-quantity effect. Our G isolates
+that comparison and finds the addition harmful at this scale.
 
 \emph{Negatives.} Replacing random corruptions with type-consistent ones costs
-\pv{10.6} points, so a substantial fraction of the headline number is
-attributable to the ease of the negatives. This supports the reading that gains
-reported by \cite{realkgc} and \cite{cats} may owe more to their negative
-sampling than to their constraint modules, though we have not tested their
-systems. The count axis failed: raising the number of negatives collapsed the
-model onto a constant answer, which bounds the recipe rather than the idea.
+10.6 points, so a substantial fraction of the headline number is attributable to
+the ease of the negatives. This supports the reading that gains reported by
+\cite{realkgc} and \cite{cats} may owe more to their negative sampling than to
+their constraint modules, though we have not tested their systems. The count
+axis failed: raising the number of negatives collapsed the model onto a constant
+answer, which bounds the recipe rather than the idea.
 
-\emph{Context.} The neighbour and path blocks are the mechanism by which the
-context-enrichment literature would answer this paper, and reproducing KG-LLM's
-own $K=5$ neighbours inside our frame tests it directly. Two properties of that
-test are worth separating from its outcome. It is only meaningful with the
-four-part guard of Section~\ref{sec:context}: 24 of 150 blocks contained the
-answer before it, and the leak would have appeared as a gain. And a gain under
-context is not by itself an answer to the diagnostic, since a block that names
-the head by its real name reintroduces exactly the binding condition B removes;
-the informative comparison is context added to the \emph{anonymised} arm.
+\emph{Implications.} For evaluation, an accuracy figure on a transductive
+benchmark is not a sufficient report; we propose (accuracy, gap) as the minimum
+unit. For method design, the productive response is not a larger model but a
+training signal that makes name lookup insufficient, and condition D is the
+measurable form of that. For enrichment, our decomposition puts a number on what
+remains once the name carries no pretrained signal: $\mathrm{MRR}=0.1336$ against
+a floor of 0.0900, where the same system reports 0.8169 with names intact. We
+stop short of transferring that figure to genuinely unseen entities: an
+anonymised entity still occupies its place in the training graph, whereas an
+inductive one does not, so 0.1336 is an upper bound on the inductive case rather
+than an estimate of it. Measuring the gap on an inductive benchmark is the test
+this motivates, and we have not run it.
 
 %=============================================================================
-\subsection{Threats to validity}
+\section{Threats to Validity}
 \label{sec:threats}
 
 \emph{Scale.} A 1.5-billion-parameter model may memorise where a larger one
@@ -987,9 +725,9 @@ generalises. Our conclusions are stated for this scale, matched to the sub-7B
 ablations of \cite{cats} and \cite{gskgc}; a scale sweep is future work.
 
 \emph{Anonymisation could destroy more than names.} This is the principal threat
-and the reason S exists. The outcome is intermediate, $m(S)=\pv{0.2974}$ against
+and the reason S exists. The outcome is intermediate, $m(S)=0.2974$ against
 $m(A)=0.8169$ and $m(B)=0.1336$, which is the informative case: it separates
-readability (\pv{22.5}\,\%) from binding (\pv{71.5}\,\%).
+readability (22.5\,\%) from binding (71.5\,\%).
 
 \emph{Single run.} Every figure is one training run at one seed, and ranking uses
 500 queries, so no contrast here has a variance estimate and small ones should be
@@ -1001,22 +739,7 @@ rather than on that stability.
 
 \emph{One graph carries the headline.} The decomposition rests on YAGO3-10 alone;
 WN11 contributes classification and familiarity results but has no permuted-name
-arm, and has no exogenous type source, so it contributes no typed condition
-either.
-
-\emph{The type inventory bounds the typed conditions.} Coverage is not the
-limitation --- 99.9\,\% of entities carry a class --- but concentration and
-provenance are. Half the entity set resolves to some notion of ``person'', split
-across six near-synonymous classes by YAGO's two labelling layers, and 43\,\% of
-the labels come from a head-noun reduction of Wikipedia categories rather than
-from WordNet. A null on C therefore bounds what \emph{this} inventory can do; a
-curated, non-redundant type system could behave differently.
-
-\emph{Candidate pools depend on the query budget.} The 50-way pools are drawn
-from a single shared random stream, so they are a function of the query order
-and of the number of queries requested. Arms are comparable to each other only
-when ranked at the same budget, which every run here was; pools are not
-reproducible across a change of budget.
+arm.
 
 \emph{Label defects.} YAGO3-10 negatives are generated, so a negative may be an
 unrecorded true fact; this inflates the real-name arm and makes our memorisation
@@ -1032,20 +755,7 @@ familiarity split converts it into a measurement: the ``neither seen'' bucket is
 the case in which memorisation cannot help.
 
 %=============================================================================
-\subsection{Conclusion and future work}
-
-For evaluation, an accuracy figure on a transductive
-benchmark is not a sufficient report; we propose (accuracy, gap) as the minimum
-unit. For method design, the productive response is not a larger model but a
-training signal that makes name lookup insufficient, and condition D is the
-measurable form of that. For enrichment, our decomposition puts a number on what
-remains once the name carries no pretrained signal: $\mathrm{MRR}=0.1336$ against
-a floor of 0.0900, where the same system reports 0.8169 with names intact. We
-stop short of transferring that figure to genuinely unseen entities: an
-anonymised entity still occupies its place in the training graph, whereas an
-inductive one does not, so 0.1336 is an upper bound on the inductive case rather
-than an estimate of it. Measuring the gap on an inductive benchmark is the test
-this motivates, and we have not run it.
+\section{Conclusion}
 
 We asked what instruction tuning installs when a language model is adapted to
 knowledge graph completion, and answered it by adding to an early and widely
@@ -1053,10 +763,9 @@ cited pipeline a control it never ran. Replacing entity surface forms with opaqu
 identifiers, while leaving relational structure intact, splits a single accuracy
 figure into a memorisation term and a residual knowledge term. Evaluated as link
 prediction on YAGO3-10, 94.0\,\% of above-chance skill is entity surface form,
-and a permuted-name control attributes \pv{71.5} points of that to the binding
+and a permuted-name control attributes 71.5 points of that to the binding
 between a name and a node rather than to the readability of the text. A
-familiarity split places the binding in the pretrained backbone. Neither
-exogenous type text nor neighbourhood context recovers what the name supplied.
+familiarity split places the binding in the pretrained backbone.
 
 We do not claim that memorisation is a defect. We claim that it is not what this
 literature reports itself as doing, that the standard protocol cannot see it,
@@ -1067,7 +776,7 @@ entity surface forms in its inputs.
 
 Three extensions follow. A scale sweep decides whether this is a statement about
 small models or about the paradigm. A second permuted-name arm on a second graph
-would establish that the \pv{71.5/22.5/6.0} split is not a property of YAGO3-10.
+would establish that the 71.5/22.5/6.0 split is not a property of YAGO3-10.
 Applying the diagnostic to inductive systems is the sharpest available test:
 there the gap should be small, and a large one would be a considerably stronger
 result than the one reported here.
@@ -1170,10 +879,9 @@ networks,'' \emph{Nature Machine Intelligence}, vol. 2, no. 11, pp. 665--673,
 calibration of modern neural networks,'' in \emph{Proc. Int. Conf. Machine
 Learning (ICML)}, 2017, pp. 1321--1330.
 
-
-\bibitem{suchanek2007} F. M. Suchanek, G. Kasneci, and G. Weikum, ``YAGO: A core
-of semantic knowledge,'' in \emph{Proc. Int. Conf. World Wide Web (WWW)}, 2007,
-pp. 697--706.
+\bibitem{elyaniv2010} R. El-Yaniv and Y. Wiener, ``On the foundations of
+noise-free selective classification,'' \emph{J. Machine Learning Research},
+vol. 11, pp. 1605--1641, 2010.
 
 \bibitem{qwen} A. Yang et al., ``Qwen2.5 technical report,'' arXiv:2412.15115,
 2024.

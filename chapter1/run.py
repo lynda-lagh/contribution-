@@ -62,6 +62,8 @@ def main() -> None:
                          "is what shows SMI cannot separate memorisation from "
                          "knowledge. Run it on A and B at minimum.")
     ap.add_argument("--limit", type=int, default=2000)
+    ap.add_argument("--require-semantic", action="store_true",
+                    help="refuse induced-type fallback at build AND at rank time")
     ns = ap.parse_args()
 
     if ns.plan:
@@ -92,7 +94,8 @@ def main() -> None:
     if ns.build or (ns.train and not data_dir.exists()):
         from .data import build_condition
         m = build_condition(cond, ns.dataset, root,
-                            cfg["data"]["train_triples"], cfg["seed"], ns.prompt)
+                            cfg["data"]["train_triples"], cfg["seed"], ns.prompt,
+                            require_semantic=ns.require_semantic)
         print(f"[build] {m['n_train_instances']:,} instances · "
               f"seen coverage {m['seen_coverage']:.1%}")
         print(f"[build] example: {m['example_positive']['instruction'][:110]}")
@@ -122,10 +125,14 @@ def main() -> None:
     # ----------------------------------------------------------------- rank
     if ns.rank:
         import subprocess, sys
-        subprocess.run([sys.executable, "-m", "chapter1.rank",
-                        "--adapter", str(adapter), "--dataset", ns.dataset,
-                        "--condition", ns.condition, "--prompt", ns.prompt],
-                       check=False)
+        # ★ forward --require-semantic. Without it a typed condition trained on
+        #   exogenous classes could still be RANKED with induced tags.
+        cmd = [sys.executable, "-m", "chapter1.rank",
+               "--adapter", str(adapter), "--dataset", ns.dataset,
+               "--condition", ns.condition, "--prompt", ns.prompt]
+        if ns.require_semantic:
+            cmd.append("--require-semantic")
+        subprocess.run(cmd, check=False)
 
 
 if __name__ == "__main__":

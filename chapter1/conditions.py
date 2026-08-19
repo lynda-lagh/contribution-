@@ -246,7 +246,21 @@ Report '% of the gap recovered', not raw accuracy:
 TYPE_TAG_FLOOR = {
     # measured on the TYPE-CONSISTENT test set. Re-run check_type_leak after ANY
     # change to test.tsv — this number is only valid for the set it was measured on.
-    "YAGO3-10": 0.513,      # clean: separation 0.026 (p_match 0.5248 pos / 0.4988 neg)
+    #
+    # ✋ INVALIDATED 2026-08-19. 0.513 was measured while build_types was still
+    #    falling back to INDUCED tags. YAGO's exogenous classes are now available
+    #    at 99.9% coverage, so C/D/E/G carry a completely different tag inventory
+    #    (`football_team`, not `playsFor::tail`) and a floor measured on the old
+    #    one bounds nothing. The old rule cannot even FIRE on the new tags — it
+    #    would have returned a vacuous 0.500 and printed "clean".
+    #
+    #    None is deliberate: floor_for() falls back to 0.5 and preflight REFUSES
+    #    to start, which is the correct behaviour for an unmeasured floor.
+    #
+    #      python -m chapter1.check_type_leak --dataset YAGO3-10 --condition C G
+    #
+    #    then put the number here.  [was: 0.513, separation 0.026]
+    "YAGO3-10": None,
 
     # ✋ MEASURED 2026-08-16, and it is a MATERIAL LEAK — do NOT run C/D/E/G on
     #    WN11 until the test negatives are regenerated type-consistently.

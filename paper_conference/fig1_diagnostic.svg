@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="560" viewBox="0 0 1120 560" font-family="Calibri, Carlito, Arial, sans-serif">
+  <!-- ═════════════════════════════════════════════════════════════════════
+       Fig. 1 — the anonymisation diagnostic.
+
+       ⚠️ THE S ROW IS PROVISIONAL. chapter1/rank.py did not apply
+          cond.shuffle when these numbers were produced, so the S arm was
+          scored on the REAL graph. Regenerate this figure from the corrected
+          re-rank (notebook cell 5b) before submitting.
+          A and B are unaffected.
+       ═════════════════════════════════════════════════════════════════════ -->
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M1 1L9 5L1 9" fill="none" stroke="#444" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1120" height="560" fill="#FFFFFF"/>
+
+  <!-- title -->
+  <rect x="300" y="12" width="520" height="30" rx="3" fill="#2E75B6"/>
+  <text x="560" y="32" text-anchor="middle" font-size="15" fill="#fff">Query: &lt;Alastair Sim, died in, ?&gt;    correct answer: London</text>
+
+  <!-- dashed containers -->
+  <rect x="18" y="72" width="158" height="248" fill="none" stroke="#333" stroke-width="1.3" stroke-dasharray="7 5"/>
+  <rect x="194" y="72" width="372" height="248" fill="none" stroke="#333" stroke-width="1.3" stroke-dasharray="7 5"/>
+  <rect x="674" y="72" width="212" height="248" fill="none" stroke="#333" stroke-width="1.3" stroke-dasharray="7 5"/>
+  <rect x="904" y="72" width="198" height="248" fill="none" stroke="#333" stroke-width="1.3" stroke-dasharray="7 5"/>
+  <text x="97"  y="64" text-anchor="middle" font-size="14" font-weight="bold">Conditions</text>
+  <text x="380" y="64" text-anchor="middle" font-size="14" font-weight="bold">Prompt Formation</text>
+  <text x="780" y="64" text-anchor="middle" font-size="14" font-weight="bold">Output</text>
+  <text x="1003" y="64" text-anchor="middle" font-size="14" font-weight="bold">Result</text>
+  <text x="780" y="336" text-anchor="middle" font-size="11" font-style="italic" fill="#555">what the model actually answers</text>
+  <text x="1003" y="336" text-anchor="middle" font-size="11" font-style="italic" fill="#555">over all 500 queries</text>
+
+  <!-- ══════════════════ row A ══════════════════ -->
+  <rect x="30" y="86" width="134" height="52" rx="3" fill="#F8CBAD" stroke="#C55A11"/>
+  <text x="42" y="108" font-size="14" font-weight="bold">A &#183; real names</text>
+  <text x="42" y="126" font-size="12" fill="#333">the published recipe</text>
+
+  <rect x="206" y="86" width="348" height="52" rx="3" fill="#C5E0B4" stroke="#548235"/>
+  <text x="218" y="107" font-size="13">Is this true: <tspan font-weight="bold">Alastair Sim</tspan> died in</text>
+  <text x="218" y="125" font-size="13"><tspan fill="#7F3F00">[candidate]</tspan>?   &#8212; scored over 50 candidates</text>
+
+  <rect x="686" y="86" width="188" height="52" rx="3" fill="#E2EFDA" stroke="#548235"/>
+  <text x="780" y="108" text-anchor="middle" font-size="14" font-weight="bold" fill="#375623">London</text>
+  <text x="780" y="126" text-anchor="middle" font-size="11" fill="#548235">CORRECT  &#183;  rank 1 of 50</text>
+
+  <rect x="916" y="86" width="174" height="52" rx="3" fill="#FFFFFF" stroke="#BFBFBF"/>
+  <text x="1003" y="110" text-anchor="middle" font-size="16" font-weight="bold">MRR 0.8169</text>
+  <text x="1003" y="127" text-anchor="middle" font-size="11" fill="#555">Hits@1 0.714</text>
+
+  <!-- ══════════════════ row S ══════════════════ -->
+  <rect x="30" y="160" width="134" height="52" rx="3" fill="#F8CBAD" stroke="#C55A11"/>
+  <text x="42" y="182" font-size="14" font-weight="bold">S &#183; permuted</text>
+  <text x="42" y="200" font-size="12" fill="#333">names reassigned</text>
+
+  <rect x="206" y="160" width="348" height="52" rx="3" fill="#C5E0B4" stroke="#548235"/>
+  <text x="218" y="181" font-size="13">Is this true: <tspan font-style="italic" fill="#7F3F00">[another real name]</tspan> died in</text>
+  <text x="218" y="199" font-size="13"><tspan fill="#7F3F00">[candidate]</tspan>?   &#8212; same words, different owners</text>
+
+  <rect x="686" y="160" width="188" height="52" rx="3" fill="#FCE4E4" stroke="#C00000"/>
+  <text x="780" y="182" text-anchor="middle" font-size="14" font-weight="bold" fill="#9C2C2C">Littlefield, Texas</text>
+  <text x="780" y="200" text-anchor="middle" font-size="11" fill="#C00000">WRONG &#8212; still a place  &#183;  rank 19</text>
+
+  <rect x="916" y="160" width="174" height="52" rx="3" fill="#FFFFFF" stroke="#BFBFBF"/>
+  <text x="1003" y="184" text-anchor="middle" font-size="16" font-weight="bold">MRR 0.2974</text>
+  <text x="1003" y="201" text-anchor="middle" font-size="11" fill="#555">Hits@1 0.198</text>
+
+  <!-- ══════════════════ row B ══════════════════ -->
+  <rect x="30" y="234" width="134" height="52" rx="3" fill="#F8CBAD" stroke="#C55A11"/>
+  <text x="42" y="256" font-size="14" font-weight="bold">B &#183; anonymised</text>
+  <text x="42" y="274" font-size="12" fill="#333">opaque identifiers</text>
+
+  <rect x="206" y="234" width="348" height="52" rx="3" fill="#C5E0B4" stroke="#548235"/>
+  <text x="218" y="255" font-size="13">Is this true: <tspan font-weight="bold">entity4471</tspan> died in</text>
+  <text x="218" y="273" font-size="13"><tspan fill="#7F3F00">[candidate]</tspan>?   &#8212; no readable text at all</text>
+
+  <rect x="686" y="234" width="188" height="52" rx="3" fill="#FCE4E4" stroke="#C00000"/>
+  <text x="780" y="256" text-anchor="middle" font-size="14" font-weight="bold" fill="#9C2C2C">Bradley Wright-Phillips</text>
+  <text x="780" y="274" text-anchor="middle" font-size="11" fill="#C00000">WRONG &#8212; a person  &#183;  rank 48</text>
+
+  <rect x="916" y="234" width="174" height="52" rx="3" fill="#FFFFFF" stroke="#BFBFBF"/>
+  <text x="1003" y="258" text-anchor="middle" font-size="16" font-weight="bold">MRR 0.1336</text>
+  <text x="1003" y="275" text-anchor="middle" font-size="11" fill="#555">Hits@1 0.050</text>
+
+  <!-- LLM -->
+  <rect x="578" y="86" width="82" height="200" rx="3" fill="#9DC3E6" stroke="#2E75B6"/>
+  <text x="619" y="178" text-anchor="middle" font-size="14" font-weight="bold">Same</text>
+  <text x="619" y="196" text-anchor="middle" font-size="14" font-weight="bold">tuned LLM</text>
+
+  <!-- arrows -->
+  <line x1="164" y1="112" x2="204" y2="112" stroke="#444" stroke-width="1.4" marker-end="url(#ar)"/>
+  <line x1="164" y1="186" x2="204" y2="186" stroke="#444" stroke-width="1.4" marker-end="url(#ar)"/>
+  <line x1="164" y1="260" x2="204" y2="260" stroke="#444" stroke-width="1.4" marker-end="url(#ar)"/>
+  <line x1="554" y1="112" x2="576" y2="112" stroke="#444" stroke-width="1.4" marker-end="url(#ar)"/>
+  <line x1="554" y1="186" x2="576" y2="186" stroke="#444" stroke-width="1.4" marker-end="url(#ar)"/>
+  <line x1="554" y1="260" x2="576" y2="260" stroke="#444" stroke-width="1.4" marker-end="url(#ar)"/>
+  <line x1="660" y1="112" x2="684" y2="112" stroke="#444" stroke-width="1.4" marker-end="url(#ar)"/>
+  <line x1="660" y1="186" x2="684" y2="186" stroke="#444" stroke-width="1.4" marker-end="url(#ar)"/>
+  <line x1="660" y1="260" x2="684" y2="260" stroke="#444" stroke-width="1.4" marker-end="url(#ar)"/>
+  <line x1="874" y1="112" x2="914" y2="112" stroke="#444" stroke-width="1.4" marker-end="url(#ar)"/>
+  <line x1="874" y1="186" x2="914" y2="186" stroke="#444" stroke-width="1.4" marker-end="url(#ar)"/>
+  <line x1="874" y1="260" x2="914" y2="260" stroke="#444" stroke-width="1.4" marker-end="url(#ar)"/>
+
+  <!-- ══════════════════ decomposition ══════════════════ -->
+  <text x="20" y="382" font-size="14" font-weight="bold">Decomposition of above-chance skill  (50-way filtered, chance MRR = 0.0900)</text>
+  <rect x="20" y="394" width="786" height="30" fill="#E06666" stroke="#9C2C2C"/>
+  <rect x="806" y="394" width="248" height="30" fill="#F8CBAD" stroke="#C55A11"/>
+  <rect x="1054" y="394" width="46" height="30" fill="#A9D18E" stroke="#548235"/>
+  <text x="413" y="414" text-anchor="middle" font-size="14" font-weight="bold" fill="#fff">71.5 %</text>
+  <text x="930" y="414" text-anchor="middle" font-size="14" font-weight="bold">22.5 %</text>
+  <text x="1077" y="414" text-anchor="middle" font-size="12" font-weight="bold">6.0 %</text>
+
+  <rect x="20" y="440" width="13" height="13" fill="#E06666" stroke="#9C2C2C"/>
+  <text x="40" y="451" font-size="13">name-to-node binding  (A &#8594; S)</text>
+  <rect x="268" y="440" width="13" height="13" fill="#F8CBAD" stroke="#C55A11"/>
+  <text x="288" y="451" font-size="13">readability of names  (S &#8594; B)</text>
+  <rect x="516" y="440" width="13" height="13" fill="#A9D18E" stroke="#548235"/>
+  <text x="536" y="451" font-size="13">residual relational knowledge</text>
+
+  <text x="20" y="482" font-size="13" fill="#333">The three arms differ only in entity surface form: relations, graph structure, adaptation recipe and token budget are</text>
+  <text x="20" y="500" font-size="13" fill="#333">identical. The <tspan font-weight="bold">gap between arms</tspan> is the measurement, not any single accuracy. Under S the model still returns a</text>
+  <text x="20" y="518" font-size="13" fill="#333"><tspan font-weight="bold">place</tspan> &#8212; the type survives, the identity does not; under B it returns a person, so readability went too.</text>
+  <text x="20" y="542" font-size="13" fill="#333">Memorisation share = (MRR<tspan font-size="10" dy="3">A</tspan><tspan dy="-3"> &#8722; MRR</tspan><tspan font-size="10" dy="3">B</tspan><tspan dy="-3">) / (MRR</tspan><tspan font-size="10" dy="3">A</tspan><tspan dy="-3"> &#8722; chance) = <tspan font-weight="bold">94.0 %</tspan> on YAGO3-10.  [another real name] = a different entity's real name, under a fixed derangement.</tspan></text>
+</svg>

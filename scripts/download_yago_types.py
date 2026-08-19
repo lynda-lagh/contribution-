@@ -35,8 +35,19 @@ MIRRORS = [
     "https://yago-knowledge.org/data/yago3/yago-3.0.2-native.7z",
     "https://yago-knowledge.org/data/yago3/yago-3.0.3-native.7z",
 ]
-# themes that carry rdf:type facts; names differ slightly between releases
-TYPE_HINTS = ("simpletype", "yagotypes", "transitivetype", "taxonomy", "types")
+# ★ ONE member, not eight. In PREFERENCE order — the first that exists wins.
+#
+#   Kaggle gives 20 GB of /kaggle/working and the archive alone is 10.9 GB, so
+#   there is ~9 GB of headroom. Extracting all eight type themes blew past it:
+#       OSError: [Errno 28] No space left on device
+#
+#   yagoSimpleTypes is the one we want anyway — ONE leaf class per entity.
+#   The others are far larger and useless here:
+#       yagoTransitiveType   every entity x every ANCESTOR class (huge)
+#       yagoTaxonomy         class -> class, no entities at all
+#       *Sources             provenance, not types
+PREFERRED = ("yagoSimpleTypes.tsv", "yagoTypes.tsv", "yagoTransitiveType.tsv")
+EXCLUDE = ("source", "taxonomy", "geonames")
 UA = "kgc-adaptation-thesis/1.0 (academic)"
 
 
@@ -66,8 +77,35 @@ def download(url: str, dest: Path) -> bool:
         return False
 
 
-def extract_types(archive: Path, out: Path) -> list[Path]:
-    """Pull only the type-bearing members out of the 7z."""
+def _pick(members: list[str], override: str | None = None) -> list[str]:
+    """Exactly ONE member: the first PREFERRED name present, or --member."""
+    if override:
+        hit = [m for m in members if m.endswith(override)]
+        return hit[:1]
+    for name in PREFERRED:
+        hit = [m for m in members
+               if m.endswith(name) and not any(x in m.lower() for x in EXCLUDE)]
+        if hit:
+            return hit[:1]
+    return []
+
+
+def _check_space(out: Path, member: str, need_gb: float = 3.0) -> None:
+    """Refuse to start an extraction that will obviously fill the disk."""
+    free = shutil.disk_usage(out).free / 1e9
+    print(f"  free space: {free:.1f} GB")
+    if free < need_gb:
+        raise SystemExit(
+            f"\n✋ only {free:.1f} GB free — extracting {member} needs ~{need_gb} GB.\n"
+            f"   Delete the archive first, or free space:\n"
+            f"     rm /kaggle/working/yago3/*.7z\n"
+            f"   ...but then the download has to run again. Better: keep the\n"
+            f"   archive on a Kaggle Dataset and extract straight from there.")
+
+
+def extract_types(archive: Path, out: Path,
+                  member: str | None = None) -> list[Path]:
+    """Pull ONE type-bearing member out of the 7z."""
     out.mkdir(parents=True, exist_ok=True)
     try:
         import py7zr
@@ -75,9 +113,9 @@ def extract_types(archive: Path, out: Path) -> list[Path]:
         if shutil.which("7z"):
             names = subprocess.run(["7z", "l", "-ba", "-slt", str(archive)],
                                    capture_output=True, text=True).stdout
-            want = [ln.split("= ", 1)[1] for ln in names.splitlines()
-                    if ln.startswith("Path = ")
-                    and any(h in ln.lower() for h in TYPE_HINTS)]
+            have = [ln.split("= ", 1)[1] for ln in names.splitlines()
+                    if ln.startswith("Path = ")]
+            want = _pick(have, member)
             if not want:
                 raise SystemExit("no type-like members found in the archive")
             print(f"  extracting {len(want)} member(s) with 7z")
@@ -90,14 +128,13 @@ def extract_types(archive: Path, out: Path) -> list[Path]:
 
     with py7zr.SevenZipFile(archive, "r") as z:
         members = z.getnames()
-        want = [m for m in members if any(h in m.lower() for h in TYPE_HINTS)]
+        want = _pick(members, member)
         if not want:
             print("  members found:", ", ".join(members[:20]))
             raise SystemExit("no type-like members in the archive — inspect the "
                              "list above and pass one with --member")
-        print(f"  extracting {len(want)} of {len(members)} members:")
-        for m in want:
-            print(f"      {m}")
+        _check_space(out, want[0])
+        print(f"  extracting 1 of {len(members)} members: {want[0]}")
         z.extract(path=out, targets=want)
     return sorted(p for p in out.rglob("*") if p.is_file())
 
@@ -108,6 +145,8 @@ def main() -> None:
                     help="where to put the archive and the extracted themes")
     ap.add_argument("--url", default=None, help="override the mirror list")
     ap.add_argument("--keep", action="store_true", help="keep the .7z afterwards")
+    ap.add_argument("--member", default=None,
+                    help="extract this member instead of yagoSimpleTypes.tsv")
     ns = ap.parse_args()
 
     out = Path(ns.out)
@@ -128,7 +167,7 @@ def main() -> None:
             "   upload the .7z (or the extracted type file) as a Kaggle Dataset,\n"
             "   and point --from-yago at it.")
 
-    files = extract_types(archive, out / "themes")
+    files = extract_types(archive, out / "themes", ns.member)
     if not ns.keep:
         archive.unlink(missing_ok=True)
         print(f"  removed {archive.name} (pass --keep to retain it)")

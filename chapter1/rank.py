@@ -231,6 +231,9 @@ def main() -> None:
     ap.add_argument("--limit", type=int, default=500,
                     help="queries. 500 x 50 = 25k forward passes ~ 20 min on a T4")
     ap.add_argument("--tag", default=None)
+    ap.add_argument("--require-semantic", action="store_true",
+                    help="★ refuse to rank a typed condition with INDUCED tags. "
+                         "Pass this whenever the adapter was trained with it.")
     ns = ap.parse_args()
 
     from src.utils.config import load_config, save_result
@@ -253,8 +256,16 @@ def main() -> None:
 
     types = None
     if cond.types or PROMPTS[ns.prompt].types:
-        from src.routing.types import entity_types
-        types = entity_types(kg)
+        # ★ BUG FIX. This called src.routing.types.entity_types -> INDUCED tags
+        #   ([playsFor::tail]), while chapter1/data.py TRAINED condition C on
+        #   EXOGENOUS semantic classes ([football_team]) via build_types. The
+        #   adapter was therefore ranked with a tag inventory it had never seen:
+        #   the same train/test mismatch as the condition-S bug, one level up,
+        #   and --require-semantic could not reach here to stop it.
+        #   build_types is the single source of truth for what a tag IS.
+        from .data import build_types
+        types = build_types(kg, cond, ns.dataset, cfg["data"]["root"],
+                            require_semantic=ns.require_semantic)
 
     # ★ Only POSITIVE test triples are valid link-prediction queries.
     #

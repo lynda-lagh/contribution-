@@ -47,7 +47,7 @@ def expected_calibration_error(conf: np.ndarray, correct: np.ndarray,
     n = len(conf)
 
     bins, ece, mce = [], 0.0, 0.0
-    for lo, hi in zip(edges[:-1], edges[1:]):
+    for lo, hi in zip(edges[:-1], edges[1:], strict=True):
         m = (conf > lo) & (conf <= hi) if lo > 0 else (conf >= lo) & (conf <= hi)
         cnt = int(m.sum())
         if cnt == 0:
