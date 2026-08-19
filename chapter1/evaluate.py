@@ -64,6 +64,14 @@ def _score_set(model, tok, records: list[dict], limit: int) -> dict:
         "accuracy": float(np.mean(correct)),
         "n": len(recs),
         "positive_rate": float(np.mean([p == 1 for p in pred])),
+        # ★ FULL-LENGTH and kept past the trim below. AUC, macro-F1 and McNemar
+        #   were being computed by chapter1/compare.py from `samples_real`,
+        #   which is a 30-row QUALITATIVE sample — so those columns would have
+        #   sat in a table beside accuracies measured on 2,000 rows, at a
+        #   sample size where an AUC confidence interval is wider than every
+        #   effect in the paper. These three lists are ints and bools; 2,000 of
+        #   each costs a few tens of kB and makes every extra metric exact.
+        "labels": [int(l) for l in labels],
         # p_yes / p_no are the raw quantities; everything downstream derives from
         # them. `confidences` is kept as P(Yes) for backwards compatibility --
         # ⚠️ note that the OLDER chapters/ch1_diagnostic/analyse.py wrote an
@@ -279,8 +287,12 @@ def evaluate_both(cfg: dict, cond, dataset: str, adapter: str, limit: int = 2000
             "seen_both": recs[i].get("seen_both"),
         } for i in sorted(idx)]
 
-    # trim the bulky arrays before saving
+    # Trim the bulky arrays before saving. `records` holds every full prompt
+    # (~200 kB per side) and `confidences` duplicates p_yes; both go.
+    # ★ `correct` and `labels` now STAY. They are what the exact metrics in
+    #   chapter1/compare.py need, and keeping them is the difference between
+    #   an AUC on 2,000 rows and one on 30.
     for k in ("_real", "_anon"):
         out[k] = {kk: vv for kk, vv in out[k].items()
-                  if kk not in ("records", "correct", "confidences")}
+                  if kk not in ("records", "confidences")}
     return out

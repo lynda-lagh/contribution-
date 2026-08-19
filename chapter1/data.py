@@ -77,6 +77,7 @@ def render(t: Triple, kg: KG, pv: PromptVariant,
 # =============================================================================
 def build_types(kg: KG, cond, dataset: str, root: str = "data",
                 max_other: float = 0.5,
+                max_other_semantic: float = 0.10,
                 require_semantic: bool = False) -> dict[str, str]:
     """
     ★★ TYPES THAT ACTUALLY CARRY INFORMATION — with a hard guard.
@@ -129,10 +130,17 @@ def build_types(kg: KG, cond, dataset: str, root: str = "data",
         print(f"[types] {dataset} {cond.id}: EXOGENOUS (semantic) -> "
               f"{r['n_distinct']} distinct, OTHER={r['other_rate']:.1%}, "
               f"largest={r['largest_share']:.1%}")
-        if r["other_rate"] <= max_other and r["n_distinct"] >= 2:
+        # ★ A SEMANTIC source is held to a STRICTER bar than the induced
+        #   fallback. max_other=0.5 is the "is this usable at all" gate for
+        #   induced tags; an exogenous source that leaves a third of the graph
+        #   as OTHER is not the resource the paper describes, and the paper
+        #   states the 90% figure. YAGO3-10 measures 0.1%, so this costs
+        #   nothing today and refuses a degraded type file tomorrow.
+        if r["other_rate"] <= max_other_semantic and r["n_distinct"] >= 2:
             return t
         msg = (f"semantic types too sparse for {dataset}: "
-               f"OTHER={r['other_rate']:.1%} > {max_other:.0%}, "
+               f"OTHER={r['other_rate']:.1%} > {max_other_semantic:.0%} "
+               f"(coverage below {1 - max_other_semantic:.0%}), "
                f"{r['n_distinct']} distinct")
         if require_semantic:
             raise SystemExit(f"\n✋ {msg}\n   --require-semantic is set, so "

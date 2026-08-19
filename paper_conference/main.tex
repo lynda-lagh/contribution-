@@ -441,9 +441,18 @@ this paper are YAGO3-10 results.
 
 Table~\ref{tab:cond} lists the seven conditions and Fig.~\ref{fig:conditions}
 shows the prompts they produce. Each varies one factor from the baseline. The
-interpretation of every possible outcome is declared in the released code
-beside the grid that defines the conditions, so a result cannot be reassigned a
-meaning after it is seen; we make no claim to a registered protocol beyond that.
+interpretation of each outcome is declared in the released code beside the grid
+that defines the conditions, so a result cannot be reassigned a meaning after it
+is seen; we make no claim to a registered protocol beyond that.
+
+One exception is material and we mark it rather than let the sentence above
+cover it. The declared readings for the permuted arm were $S \approx B$ (the
+binding carried the signal) and $S \approx A$ (names were never used). The
+outcome was neither: $S$ fell strictly between them, and the three-way
+decomposition of Section~\ref{sec:decomp} --- binding, readability, residual ---
+was written to accommodate it. That decomposition is therefore
+\emph{exploratory}, and confirming it on a second graph is the first item of
+future work rather than a refinement.
 
 % ⚠️ fig2_conditions.svg still renders the INDUCED tags. Regenerate it from the
 %    exogenous builder before submission; the caption below describes the
@@ -502,7 +511,12 @@ four things from every block --- the gold entity, every edge on the query
 relation, every edge on its inverse, and the query triple itself --- and is
 validated by an assertion that no block over a held-out sample contains the
 gold string. The same assertion is run in the reverse direction to confirm the
-guard is not simply emptying the block.
+guard is not simply emptying the block. Inverse pairs are not assumed from the
+relation names: $r'$ is treated as an inverse of $r$ when at least half of the
+$(h, r, t)$ edges have a matching $(t, r', h)$ edge in the training graph. A
+guard that drops only $r$ itself is correct on a graph that stores mirrors
+under one name and silently incomplete on one that does not, and which of those
+holds is a property of the release rather than of the method.
 
 Two readings are available and they differ in strength. Evaluating a P0-trained
 checkpoint under P5--P7 is cheap but asymmetric: an increase is interpretable,
@@ -596,10 +610,11 @@ every typed result.
 
 \emph{Mirror facts in context blocks.} The neighbour and path blocks of
 Section~\ref{sec:context} were first built with the conventional guard, which
-excludes the target entity. Auditing 150 blocks found the gold answer present in
-24 of them, supplied by edges on the inverse of the query relation. With the
-four-part guard in place the same audit returns 0 of 150, while a
-complementary check confirms the blocks remain non-empty. A context result
+excludes the target entity. Auditing 300 blocks found the gold answer present in
+\pv{24} of them, supplied by edges on the inverse of the query relation. With the
+four-part guard in place the same audit returns \pend\ of 300, while a
+complementary check confirms the blocks remain non-empty and reports the number
+of inverse pairs the detector found. A context result
 measured before this correction would have reported the leak as a gain.
 
 %=============================================================================
@@ -665,6 +680,7 @@ not interpretable (Section~\ref{sec:context}), only the P6 training row licenses
 a two-sided reading.
 
 \subsection{Decomposition}
+\label{sec:decomp}
 
 Because S preserves the vocabulary and destroys only the binding between a name
 and its entity, the conditions partition above-chance skill into three additive
@@ -972,8 +988,8 @@ model onto a constant answer, which bounds the recipe rather than the idea.
 context-enrichment literature would answer this paper, and reproducing KG-LLM's
 own $K=5$ neighbours inside our frame tests it directly. Two properties of that
 test are worth separating from its outcome. It is only meaningful with the
-four-part guard of Section~\ref{sec:context}: 24 of 150 blocks contained the
-answer before it, and the leak would have appeared as a gain. And a gain under
+four-part guard of Section~\ref{sec:context}: \pv{24} of 300 blocks contained
+the answer before it, and the leak would have appeared as a gain. And a gain under
 context is not by itself an answer to the diagnostic, since a block that names
 the head by its real name reintroduces exactly the binding condition B removes;
 the informative comparison is context added to the \emph{anonymised} arm.
@@ -1017,6 +1033,16 @@ from a single shared random stream, so they are a function of the query order
 and of the number of queries requested. Arms are comparable to each other only
 when ranked at the same budget, which every run here was; pools are not
 reproducible across a change of budget.
+
+\emph{Two anonymised WN11 test sets exist and this paper quotes both.} The
+decision-rule and familiarity tables report the tuned model at 0.5325 on
+anonymised WN11; the gap arithmetic elsewhere follows a later evaluation of the
+same checkpoint that returns 0.5010. The two anonymised sets were built
+separately and carry different generated negatives, which is a 3.15-point
+difference in the arm that sits closest to the floor. The final version will
+report one of them; until then the WN11 residual should be read as
+\pv{0.03}--\pv{0.00} rather than as a point estimate. The YAGO3-10
+decomposition, which carries the paper, is unaffected.
 
 \emph{Label defects.} YAGO3-10 negatives are generated, so a negative may be an
 unrecorded true fact; this inflates the real-name arm and makes our memorisation

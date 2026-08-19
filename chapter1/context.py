@@ -29,16 +29,24 @@ answer without noticing. Two ways it happens:
      conservative direction -- it only ever removes information -- and it is
      what the published method does, so we match it and say so.
 
-  4. ★ THE RELATION ITSELF.  Even with 1 and 2 removed, ANY edge from the head
-     along the QUERY RELATION names a true answer:
+  4. ★ THE RELATION ITSELF, AND ANYTHING THAT MIRRORS IT.  Even with 1 and 2
+     removed, ANY edge from the head along the QUERY RELATION names a true
+     answer:
          query   (Alastair Sim, diedIn, ?)
          context  Alastair Sim diedIn London          <- the answer
-     KG-LLM does NOT guard this one.  We drop every edge on the query relation,
-     in both directions.  It is the strict choice and it costs some context,
-     but a context block that contains the answer measures nothing.
+     KG-LLM does NOT guard this one.  We drop every edge on the query relation
+     in both directions -- AND every edge on a relation that is an inverse of
+     it under a DIFFERENT name:
+         query   (London, isLocatedIn, ?)             gold: England
+         context  England hasPart London              <- still the answer
+     Dropping only `rel == query_relation` catches the first because YAGO
+     happens to store mirrors under one name; it does not catch the second.
+     `GraphIndex._find_inverses` learns the pairs from the graph instead of
+     trusting the storage convention.
 
-`safe_neighbours` implements all three.  `assert_no_leak` proves it on real
-data and is called by the test suite and the preflight.
+`safe_neighbours` implements all four.  `assert_no_leak` proves it on real
+data, reports how many inverse pairs were found, and is called by the test
+suite and the preflight.
 """
 from __future__ import annotations
 
@@ -110,14 +118,80 @@ def describe_relation(relation: str, kg: KG) -> str:
 #  into a 9-hour one in chapter 3.
 # =============================================================================
 class GraphIndex:
-    def __init__(self, kg: KG, include_test: bool = False) -> None:
+    def __init__(self, kg: KG, include_test: bool = False,
+                 inverse_threshold: float = 0.5,
+                 inverse_min_support: int = 100) -> None:
         self.nbrs: dict[str, list[tuple[str, str, str]]] = defaultdict(list)
-        src = list(kg.train) + (list(kg.test) if include_test else [])
-        for t in src:
-            if t.label == -1:                       # never build context from a
-                continue                            # triple labelled FALSE
+        src = [t for t in (list(kg.train)
+                           + (list(kg.test) if include_test else []))
+               if t.label != -1]                    # never build context from a
+        for t in src:                               # triple labelled FALSE
             self.nbrs[t.head].append((t.relation, t.tail, "out"))
             self.nbrs[t.tail].append((t.relation, t.head, "in"))
+        self.inverse = self._find_inverses(src, inverse_threshold,
+                                           inverse_min_support)
+
+    @staticmethod
+    def _find_inverses(triples, threshold: float,
+                       min_support: int) -> dict[str, set[str]]:
+        """
+        ★ WHICH RELATIONS ARE INVERSES OF WHICH, LEARNED FROM THE GRAPH.
+
+        The guard used to drop only `rel == query_relation`. That catches a
+        mirror stored under the SAME name -- (a, r, b) and (b, r, a) -- which is
+        how YAGO happens to store most of them, so it worked in practice. It
+        does NOT catch a mirror stored under a DIFFERENT name:
+
+            query    (London, isLocatedIn, ?)          gold: England
+            context   England hasPart London           <- names the answer
+
+        Relying on the dataset's storage convention is not a guard, it is luck,
+        and the paper claims we exclude "every edge on its inverse". So detect
+        the pairs: r' is an inverse of r when most (h, r, t) edges have a
+        matching (t, r', h) edge. One pass, then one lookup per relation.
+
+        ⚠️ TWO CONDITIONS, BOTH NECESSARY — the first version had neither and
+           over-fired on a four-edge test graph, deleting a legitimate
+           neighbour. A guard that removes too much is not safe, it is quiet:
+           it shrinks the block until P6 degenerates into P0, and the coverage
+           guard in chapter1/data.py is what finally complains.
+
+             SUPPORT    a rate cannot be estimated from a handful of edges, so
+                        relations below `min_support` are never paired.
+             MUTUALITY  r' must mirror r AND r must mirror r'. One-directional
+                        co-occurrence is a different relation -- `isCitizenOf`
+                        often accompanies `livesIn`, but it is not its inverse
+                        and dropping it would cost real context for nothing.
+        """
+        pair_rels: dict[tuple[str, str], set[str]] = defaultdict(set)
+        for t in triples:
+            pair_rels[(t.head, t.tail)].add(t.relation)
+
+        support: dict[str, int] = defaultdict(int)
+        co: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        for t in triples:
+            support[t.relation] += 1
+            for r2 in pair_rels.get((t.tail, t.head), ()):
+                co[t.relation][r2] += 1
+
+        def rate(a: str, b: str) -> float:
+            return co.get(a, {}).get(b, 0) / (support.get(a) or 1)
+
+        out: dict[str, set[str]] = {}
+        for r, others in co.items():
+            if support[r] < min_support:
+                continue
+            hits = {r2 for r2 in others
+                    if support.get(r2, 0) >= min_support
+                    and rate(r, r2) >= threshold
+                    and rate(r2, r) >= threshold}
+            if hits:
+                out[r] = hits
+        return out
+
+    def inverses_of(self, relation: str) -> set[str]:
+        """`relation` itself plus every relation that mirrors it."""
+        return {relation} | self.inverse.get(relation, set())
 
     def degree(self, e: str) -> int:
         return len(self.nbrs.get(e, ()))
@@ -137,11 +211,15 @@ def safe_neighbours(index: GraphIndex, kg: KG, head: str, query_relation: str,
     """
     rng = rng or random.Random(42)
     exclude = exclude or set()
+    # ★ guard 4: any edge on the QUERY RELATION names a true answer, whichever
+    #   direction it points -- and so does any edge on a relation that MIRRORS
+    #   it under a different name. `inverses_of` is learned from the graph; the
+    #   getattr keeps an index pickled by an older run usable.
+    banned = (index.inverses_of(query_relation)
+              if hasattr(index, "inverses_of") else {query_relation})
     out: list[str] = []
     for rel, other, _dir in index.nbrs.get(head, ()):
-        # ★ guard 3: any edge on the QUERY RELATION names a true answer,
-        #   whichever direction it points. This is the one KG-LLM omits.
-        if rel == query_relation:
+        if rel in banned:
             continue
         if other == head or other in exclude:       # guards 1 and 2
             continue
@@ -167,14 +245,17 @@ def neighbour_block(index: GraphIndex, kg: KG, head: str, query_relation: str,
 # =============================================================================
 def safe_paths(index: GraphIndex, kg: KG, head: str, tail: str,
                query_relation: str, max_paths: int = 3) -> list[str]:
-    """Two-hop chains head -> mid -> tail, never using the query relation."""
+    """Two-hop chains head -> mid -> tail, never using the query relation
+    or any relation that mirrors it (see `GraphIndex._find_inverses`)."""
+    banned = (index.inverses_of(query_relation)
+              if hasattr(index, "inverses_of") else {query_relation})
     tails = {}
     for rel, other, _d in index.nbrs.get(tail, ()):
-        if rel != query_relation and other != tail:
+        if rel not in banned and other != tail:
             tails.setdefault(other, rel)
     out = []
     for rel, mid, _d in index.nbrs.get(head, ()):
-        if rel == query_relation or mid == head or mid == tail:
+        if rel in banned or mid == head or mid == tail:
             continue
         if mid in tails:
             out.append(f"{kg.ent2txt.get(head, head)} "
@@ -248,4 +329,13 @@ def assert_no_leak(kg: KG, index: GraphIndex, n: int = 300) -> str:
              if reachable else
              "no forced case available on this split (train and test are "
              "disjoint), so POWER is untested here — the unit test covers it")
-    return f"0 leaks in {n} queries; {power}"
+    # ★ report the detected mirrors. If this is 0 on a graph that obviously has
+    #   them, the detector is mis-tuned and guard 4 is weaker than claimed —
+    #   which is exactly the thing the paper asserts and must be able to show.
+    inv = getattr(index, "inverse", {})
+    npairs = sum(len(v) - (1 if r in v else 0) for r, v in inv.items())
+    examples = "; ".join(f"{r}~{'/'.join(sorted(v - {r}))}"
+                         for r, v in list(inv.items())[:3] if v - {r})
+    inv_note = (f"{npairs} inverse relation pair(s) detected"
+                + (f" ({examples})" if examples else ""))
+    return f"0 leaks in {n} queries; {power}; {inv_note}"

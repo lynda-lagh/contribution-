@@ -272,7 +272,25 @@ def t_context_guard_blocks_the_answer():
     got = safe_neighbours(idx, kg, "h", "r", k=99, exclude={"g"})
     assert "Gold" not in got, f"the gold answer leaked into the context: {got}"
     assert "Other" in got, f"the guard removed a legitimate neighbour: {got}"
-    return f"  4 leak routes blocked, legitimate neighbour kept: {got}"
+
+    # ★ the inverse detector must not fire on four edges. It did, and it ate
+    #   the legitimate neighbour above — over-removal is a silent failure, not
+    #   a safe one, because it turns P6 into P0 without saying so.
+    assert not idx.inverse, f"inverse detected from {len(kg.train)} edges: {idx.inverse}"
+
+    # and it MUST fire when the evidence is actually there: a mutual pair with
+    # enough support on both sides
+    big = _KG(name="toy2", ent2txt={f"e{i}": f"E{i}" for i in range(400)},
+              rel2txt={"fwd": "fwd", "bwd": "bwd", "solo": "solo"},
+              train=[Triple(f"e{i}", "fwd", f"e{i+1}", 1) for i in range(0, 398, 2)]
+                    + [Triple(f"e{i+1}", "bwd", f"e{i}", 1) for i in range(0, 398, 2)]
+                    + [Triple(f"e{i}", "solo", f"e{i+2}", 1) for i in range(0, 396, 2)],
+              test=[])
+    bi = GraphIndex(big)
+    assert bi.inverses_of("fwd") == {"fwd", "bwd"}, bi.inverse
+    assert "solo" not in bi.inverses_of("fwd"), bi.inverse
+    return (f"  4 leak routes blocked, legitimate neighbour kept: {got}; "
+            f"mutual inverse fwd~bwd detected, one-sided 'solo' not")
 
 
 def t_context_guard_is_not_vacuous():
@@ -311,25 +329,56 @@ def t_instance_counts_reported():
 
 # ================================================================ ANALYSIS
 def t_gap():
+    """
+    ★ Fixture repointed 2026-08-19. It used 0.9315 / 0.5385 -> share 0.911,
+      which conditions.CEILING_NOTE itself flags as "stale numbers from a
+      superseded run that matched nothing in results/". The live WN11 figures
+      are 0.9265 / 0.5010 (ch1-WN11-A-eval.json): gap 0.4255, memorisation
+      share 99.8% -- the anonymised arm sits almost exactly on the 0.5 floor.
+      The arithmetic was never wrong; the test was pinning a retracted number,
+      which is how a stale figure survives a green test suite.
+
+    ⚠️ TWO RUNS DISAGREE ABOUT acc_anon ON WN11, AND THE PAPER USES BOTH:
+           ch1-WN11-A-eval.json   0.5010   (chapter1.run; anon set = WN11-B)
+           ch1_WN11.json          0.5325   (parser sweep; anon set = WN11-anon)
+       Same checkpoint, same nominal task, 3.15 points apart, because the two
+       anonymised test sets were built separately and carry different
+       negatives. The paper's decision-rule and familiarity tables quote
+       0.5325 while its gap arithmetic follows 0.5010. One of them has to go.
+       This test pins the newer file so the choice is made on purpose.
+    """
     from .analysis import gap_table
-    g = gap_table([{"condition": "A", "acc_real": 0.9315, "acc_anon": 0.5385},
-                   {"condition": "C", "acc_real": 0.88, "acc_anon": 0.75}])
+    g = gap_table([{"condition": "A", "acc_real": 0.9265, "acc_anon": 0.5010},
+                   {"condition": "B", "acc_real": 0.88, "acc_anon": 0.75}])
     rows = {r["condition"]: r for r in g["rows"]}
-    assert abs(rows["A"]["gap"] - 0.3930) < 1e-6, rows["A"]
-    assert g["best_generalisation"] == "C", "C has the smaller gap and must win"
-    # ★ the real Ch1 number: 91% of above-chance accuracy is surface form
-    assert abs(rows["A"]["memorisation_share"] - 0.911) < 0.01, rows["A"]
+    assert abs(rows["A"]["gap"] - 0.4255) < 1e-6, rows["A"]
+    assert g["best_generalisation"] == "B", "B has the smaller gap and must win"
+    assert abs(rows["A"]["memorisation_share"] - 0.9977) < 0.01, rows["A"]
     return f"  A gap {rows['A']['gap']:.4f} (memorisation share " \
            f"{rows['A']['memorisation_share']:.1%})"
 
 
+def t_gap_typed_floor():
+    """
+    ★ A TYPED condition must be scored against its MEASURED tag-only floor,
+      not against 0.5 — the bug that made gap_table and evaluate.py disagree.
+      With no dataset passed there is no floor to apply, so the row must be
+      FLAGGED rather than silently reported as if one had been.
+    """
+    from .analysis import gap_table
+    g = gap_table([{"condition": "C", "acc_real": 0.70, "acc_anon": 0.60}])
+    assert g["warning"] and "C" in g["warning"], g
+    assert g["rows"][0]["floor_applied"] is False
+    return "  typed row without a dataset is flagged, not silently floored at 0.5"
+
+
 def t_recovery():
     from .analysis import recovery
-    assert abs(recovery(0.5385, 0.9315, 0.5385)) < 1e-9, "B recovers 0%"
-    assert abs(recovery(0.9315, 0.9315, 0.5385) - 1.0) < 1e-9, "A recovers 100%"
-    mid = recovery(0.735, 0.9315, 0.5385)
+    assert abs(recovery(0.5010, 0.9265, 0.5010)) < 1e-9, "B recovers 0%"
+    assert abs(recovery(0.9265, 0.9265, 0.5010) - 1.0) < 1e-9, "A recovers 100%"
+    mid = recovery(0.71375, 0.9265, 0.5010)
     assert 0.49 < mid < 0.51, mid
-    return f"  midpoint recovers {mid:.1%} of the 39.3-point gap"
+    return f"  midpoint recovers {mid:.1%} of the 42.6-point gap"
 
 
 def t_seen_unseen():
@@ -470,6 +519,7 @@ def run_suite() -> int:
 
     print("\nANALYSIS")
     check("gap + memorisation share", t_gap)
+    check("typed conditions use the measured floor", t_gap_typed_floor)
     check("% of gap recovered", t_recovery)
     check("seen/unseen detects memorisation", t_seen_unseen)
     check("seen/unseen null case", t_seen_unseen_null)

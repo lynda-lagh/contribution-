@@ -192,16 +192,35 @@ def main() -> None:
         blocks = {}
         for f in sorted(res.glob(f"ch1-{ns.dataset}-*-eval.json")):
             d = json.loads(f.read_text(encoding="utf-8"))
-            s = d.get("samples_real")
-            if not s:
-                continue
             cond = d.get("condition", f.stem)
-            p = [r["p_yes"] for r in s]
-            y = [r["label"] for r in s]
-            pred = [r["predicted"] for r in s]
+
+            # ★ FULL test set, not the 30-row qualitative sample.
+            #   This read `samples_real` — a seeded sample kept for showcase.py
+            #   — so every AUC / F1 / McNemar below was n=30 while the accuracy
+            #   column beside it was n=2,000. `_real` carries the full-length
+            #   p_yes / labels / correct arrays; `samples_real` stays a fallback
+            #   for runs saved before that change.
+            blk = d.get("_real") or {}
+            if blk.get("labels") and blk.get("p_yes"):
+                p, y = blk["p_yes"], blk["labels"]
+                pred = [1 if a >= b else -1
+                        for a, b in zip(p, blk["p_no"], strict=True)]
+                corr = blk.get("correct") or [q == l for q, l in
+                                              zip(pred, y, strict=True)]
+                n_src = f"n={len(y)}, full test set"
+            elif d.get("samples_real"):
+                s = d["samples_real"]
+                p = [r["p_yes"] for r in s]
+                y = [r["label"] for r in s]
+                pred = [r["predicted"] for r in s]
+                corr = [r["correct"] for r in s]
+                n_src = (f"n={len(s)} SAMPLED rows ⚠️ re-run the evaluation to "
+                         f"get the full set")
+            else:
+                continue
             m = prf(pred, y)
-            blocks[cond] = [r["correct"] for r in s]
-            print(f"\n{cond}  (n={len(s)} sampled rows)")
+            blocks[cond] = corr
+            print(f"\n{cond}  ({n_src})")
             print(f"   AUC            {auc(p, y):.4f}   "
                   f"← separates positives from negatives at ANY threshold")
             print(f"   macro-F1       {m['macro_f1']:.4f}")
@@ -214,11 +233,21 @@ def main() -> None:
             conds = sorted(blocks)
             base = conds[0]
             for c in conds[1:]:
+                # ✋ McNemar is a PAIRED test: row i of one arm must be row i of
+                #    the other. Different --limit values give different lengths,
+                #    and silently truncating to the shorter one would pair
+                #    unrelated triples and still print a p-value.
+                if len(blocks[c]) != len(blocks[base]):
+                    print(f"   {base} vs {c}: SKIPPED — {len(blocks[base])} vs "
+                          f"{len(blocks[c])} rows, so the arms are not paired. "
+                          f"Re-evaluate both at the same --limit.")
+                    continue
                 r = mcnemar(blocks[base], blocks[c])
                 print(f"   {base} vs {c}: {r['reading']}")
         if not blocks:
-            print("\n  no samples_* blocks yet — re-run the evaluation with the "
-                  "current chapter1/evaluate.py to capture them (no retraining).")
+            print("\n  no per-row probabilities saved yet — re-run the evaluation "
+                  "with the current chapter1/evaluate.py (no retraining needed; "
+                  "it keeps p_yes / labels / correct for the whole test set).")
 
     out = Path(ns.out or res / f"ch1_vs_kgllm_{ns.dataset}.md")
     out.write_text("\n".join(lines), encoding="utf-8")

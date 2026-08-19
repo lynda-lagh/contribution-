@@ -28,27 +28,54 @@ import numpy as np
 # =============================================================================
 #  1. THE GAP
 # =============================================================================
-def gap_table(rows: list[dict]) -> dict:
+def gap_table(rows: list[dict], dataset: str | None = None) -> dict:
     """
     rows: [{condition, acc_real, acc_anon}, ...]
 
     A large gap means surface forms carry the accuracy. The TRADE-OFF the thesis
     must show is that a model can give up a little acc_real for a much smaller
     gap -- and if no condition does, that is the finding.
+
+    ★ BUG FIX. The denominator was hardcoded `ar - 0.5`. For a TYPED condition
+      chance is NOT 0.5 -- it is the measured tag-only floor, because a one-line
+      heuristic already reaches it. chapter1/evaluate.py was fixed to call
+      conditions.floor_for() and this function was not, so the two modules
+      returned DIFFERENT memorisation shares for C, D, E and G from the same
+      accuracies. Whichever one a table was built from decided the number.
+
+      `dataset` is optional only so that a caller with no dataset in hand still
+      works; when it is None the floor is 0.5 and the row is flagged, rather
+      than quietly reported as if the floor had been applied.
     """
+    from .conditions import CONDITIONS, floor_for
+
     out = []
     for r in rows:
         ar, aa = r.get("acc_real"), r.get("acc_anon")
         if ar is None or aa is None:
             continue
-        out.append({**r, "gap": ar - aa,
-                    "memorisation_share": (ar - aa) / (ar - 0.5) if ar > 0.5 else None})
+        cid = r.get("condition")
+        typed = cid in CONDITIONS and CONDITIONS[cid].types
+        if typed and dataset:
+            chance = floor_for(cid, dataset)
+        else:
+            chance = 0.5
+        out.append({**r, "gap": ar - aa, "chance_level": chance,
+                    "floor_applied": not (typed and not dataset),
+                    "memorisation_share": ((ar - aa) / (ar - chance)
+                                           if ar > chance else None)})
     out.sort(key=lambda x: x["gap"])
+    unfloored = [r["condition"] for r in out if not r["floor_applied"]]
     return {
         "rows": out,
         "best_generalisation": out[0]["condition"] if out else None,
-        "note": ("memorisation_share = gap / (acc_real - chance). It answers "
-                 "'what fraction of the above-chance performance is surface form?'"),
+        "note": ("memorisation_share = gap / (acc_real - chance), where chance "
+                 "is 0.5 for an untyped condition and the MEASURED tag-only "
+                 "floor for a typed one."),
+        "warning": (f"⚠️ typed condition(s) {', '.join(unfloored)} were scored "
+                    f"against 0.5 because no dataset was passed — their shares "
+                    f"are OVERSTATED. Call gap_table(rows, dataset=...)."
+                    if unfloored else None),
     }
 
 
@@ -186,14 +213,17 @@ def main() -> None:
         rows.append({"condition": d.get("condition", f.stem),
                      "acc_real": d.get("acc_real"), "acc_anon": d.get("acc_anon")})
     if rows:
-        g = gap_table(rows)
-        print(f"\n{'cond':6s} {'real':>8s} {'anon':>8s} {'gap':>8s} {'memo share':>11s}")
+        g = gap_table(rows, dataset=ns.dataset)
+        print(f"\n{'cond':6s} {'real':>8s} {'anon':>8s} {'gap':>8s} "
+              f"{'chance':>7s} {'memo share':>11s}")
         print("-" * 74)
         for r in g["rows"]:
             ms = f"{r['memorisation_share']:.1%}" if r["memorisation_share"] else "  —"
             print(f"{r['condition']:6s} {r['acc_real']:8.4f} {r['acc_anon']:8.4f} "
-                  f"{r['gap']:8.4f} {ms:>11s}")
+                  f"{r['gap']:8.4f} {r['chance_level']:7.3f} {ms:>11s}")
         print(f"\n  smallest gap: {g['best_generalisation']}")
+        if g["warning"]:
+            print(f"  {g['warning']}")
     else:
         print("\n  no ch1-*-eval.json yet — run chapter1.run first")
 
