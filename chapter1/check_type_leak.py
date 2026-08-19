@@ -70,9 +70,9 @@ def _kg_for(cond, dataset: str, root: str, seed: int):
     return kg
 
 
-def trivial_rule(types: dict[str, str], kg):
+def trivial_rules(types: dict[str, str], kg) -> list[tuple[str, object]]:
     """
-    ★★ THE ONE-LINE RULE, MATCHED TO THE TAG FAMILY IN USE.
+    ★★ THE ONE-LINE RULES, MATCHED TO THE TAG FAMILY IN USE.
 
     ✋ THE BUG THIS FIXES. The rule was hardcoded as
 
@@ -87,12 +87,32 @@ def trivial_rule(types: dict[str, str], kg):
 
     The exogenous analogue of "does the tag name the relation" is "does the tag
     match what this relation's tails normally ARE", learned from the training
-    edges only. Two strengths, and we report the stronger:
+    edges only. We run BOTH available strengths and report the harder floor:
 
       MODAL   tail class == the single most common tail class of r
       RANGE   tail class in the SET of classes seen as tails of r
-              (range is the rule a type-constraint method actually implements,
-               and it is the harder floor to clear)
+
+    ✋ AND RANGE IS TAUTOLOGICAL ON THIS TEST SET — measured, not suspected.
+       Reporting RANGE alone returned:
+
+           tag-only rule accuracy 50.0%   (clean)
+           P(rule fires)   positives 100.0%   negatives 100.0%   separation 0.0%
+
+       A rule that fires on every row of both classes has not been cleared, it
+       has not been asked anything. The cause is that
+       `src.data.negatives.build_relation_type_index` draws a type-consistent
+       negative uniformly from the ENTITIES observed as tails of r, so the
+       corrupted tail is itself a training tail of r and its class is in the
+       class-range by construction. The check restated the sampler.
+
+       This is the third vacuous pass in this file's history — first 100% OTHER
+       types, then an induced rule against exogenous tags, now a rule that
+       mirrors the negative generator. All three printed a tick. `saturated()`
+       below now refuses to call any of them clean.
+
+       MODAL is not tautological: negatives are uniform over the range while
+       positives concentrate on whatever the relation actually takes, so the
+       two can separate. It is the rule that carries the floor.
     """
     modal: dict[str, str] = {}
     rng_: dict[str, set[str]] = {}
@@ -110,12 +130,31 @@ def trivial_rule(types: dict[str, str], kg):
     # rather than assume which family we were handed
     sample = next((v for v in types.values() if v), "")
     if "::" in sample:
-        return (lambda rel, tl: types.get(tl) == f"{rel}::tail",
-                "tail tag == '{r}::tail'  [induced]")
+        return [("tail tag == '{r}::tail'  [induced]",
+                 lambda rel, tl: types.get(tl) == f"{rel}::tail")]
 
-    def _range(rel, tl):
-        return types.get(tl) in rng_.get(rel, ())
-    return _range, "tail class in the training RANGE of r  [exogenous]"
+    return [
+        ("tail class == the MODAL tail class of r  [exogenous]",
+         lambda rel, tl: types.get(tl) == modal.get(rel)),
+        ("tail class in the training RANGE of r  [exogenous]",
+         lambda rel, tl: types.get(tl) in rng_.get(rel, ())),
+    ]
+
+
+def saturated(p_yes: float, p_no: float, eps: float = 0.02) -> str | None:
+    """
+    ✋ A CONSTANT RULE IS NOT A CLEAN RULE.
+
+    If a rule fires on ~everything or ~nothing in BOTH classes, its accuracy is
+    the base rate and it has measured nothing about the tags. On a balanced set
+    that prints as exactly 50.0% — indistinguishable from a genuine null, and
+    that is how a vacuous check passes review.
+    """
+    if p_yes > 1 - eps and p_no > 1 - eps:
+        return "fires on EVERY row of both classes"
+    if p_yes < eps and p_no < eps:
+        return "fires on NO row of either class"
+    return None
 
 
 def audit(cond_id: str, dataset: str, root: str, seed: int) -> dict | None:
@@ -133,62 +172,86 @@ def audit(cond_id: str, dataset: str, root: str, seed: int) -> dict | None:
     kg = _kg_for(cond, dataset, root, seed)
     types = build_types(kg, cond, dataset)
     test = json.loads(path.read_text(encoding="utf-8"))
-    rule, rule_name = trivial_rule(types, kg)
-
-    n = correct = 0
-    pos_match = neg_match = n_pos = n_neg = 0
-    by_rel: dict[str, list[int]] = {}
-
-    for r in test:
-        lab = r.get("label")
-        rel, tl = r.get("relation"), r.get("tail")
-        if lab is None or rel is None:
-            continue
-        n += 1
-        says_yes = rule(rel, tl)
-        truth_yes = lab == 1
-        correct += says_yes == truth_yes
-        if truth_yes:
-            n_pos += 1
-            pos_match += says_yes
-        else:
-            n_neg += 1
-            neg_match += says_yes
-        by_rel.setdefault(rel, [0, 0])
-        by_rel[rel][0] += says_yes == truth_yes
-        by_rel[rel][1] += 1
-
-    if not n:
+    rows = [r for r in test
+            if r.get("label") is not None and r.get("relation") is not None]
+    if not rows:
         print(f"[{cond_id}] test records carry no labels — cannot audit.")
         return None
 
-    acc = correct / n
-    p_yes = pos_match / max(1, n_pos)
-    p_no = neg_match / max(1, n_neg)
+    print(f"\n[{cond_id}] n = {len(rows):,}  "
+          f"({sum(r['label'] == 1 for r in rows):,} positive)")
 
-    verdict = ("clean" if acc < 0.55 else
-               "MATERIAL LEAK" if acc < 0.75 else "MEASURING THE ARTEFACT")
-    mark = {"clean": "✓", "MATERIAL LEAK": "⚠️", "MEASURING THE ARTEFACT": "✋"}[verdict]
+    scored = []
+    for rule_name, rule in trivial_rules(types, kg):
+        n = correct = 0
+        pos_match = neg_match = n_pos = n_neg = 0
+        by_rel: dict[str, list[int]] = {}
+        for r in rows:
+            rel, tl = r["relation"], r.get("tail")
+            n += 1
+            says_yes = bool(rule(rel, tl))
+            truth_yes = r["label"] == 1
+            correct += says_yes == truth_yes
+            if truth_yes:
+                n_pos += 1
+                pos_match += says_yes
+            else:
+                n_neg += 1
+                neg_match += says_yes
+            by_rel.setdefault(rel, [0, 0])
+            by_rel[rel][0] += says_yes == truth_yes
+            by_rel[rel][1] += 1
 
-    print(f"\n{mark} [{cond_id}] tag-only rule accuracy {acc:.1%}   ({verdict})")
+        acc = correct / n
+        p_yes = pos_match / max(1, n_pos)
+        p_no = neg_match / max(1, n_neg)
+        vac = saturated(p_yes, p_no)
+        verdict = ("VACUOUS" if vac else
+                   "clean" if acc < 0.55 else
+                   "MATERIAL LEAK" if acc < 0.75 else "MEASURING THE ARTEFACT")
+        mark = {"VACUOUS": "✋", "clean": "✓", "MATERIAL LEAK": "⚠️",
+                "MEASURING THE ARTEFACT": "✋"}[verdict]
+
+        print(f"  {mark} {acc:6.1%}  {rule_name}")
+        print(f"        fires on   positives {p_yes:5.1%}   negatives {p_no:5.1%}"
+              f"   separation {abs(p_yes - p_no):5.1%}")
+        if vac:
+            print(f"        ✋ {vac} — this rule measured NOTHING. Its {acc:.1%} "
+                  f"is the base rate, not a cleared floor.")
+        worst = sorted(((c / max(1, t), r, t) for r, (c, t) in by_rel.items()
+                        if t >= 30), reverse=True)[:3]
+        if worst and not vac:
+            print("        worst relations: "
+                  + " · ".join(f"{r} {a:.1%} (n={t})" for a, r, t in worst))
+
+        scored.append({"rule": rule_name, "tag_only_accuracy": acc,
+                       "p_match_positive": p_yes, "p_match_negative": p_no,
+                       "separation": abs(p_yes - p_no), "verdict": verdict,
+                       "vacuous": bool(vac)})
+
+    # ★ THE FLOOR IS THE HARDEST NON-VACUOUS RULE. A vacuous rule cannot lower
+    #   it -- "the check returned 50%" is not evidence when the check was
+    #   constant -- and if EVERY rule is vacuous there is no measured floor and
+    #   we say so rather than emit a number.
+    usable = [s for s in scored if not s["vacuous"]]
+    if not usable:
+        print(f"\n  ✋ [{cond_id}] every trivial rule was vacuous on this test "
+              f"set — there is NO measured floor. Do not record one.")
+        return {"condition": cond_id, "n": len(rows), "rules": scored,
+                "tag_only_accuracy": None, "verdict": "NO USABLE RULE"}
+
+    best = max(usable, key=lambda s: s["tag_only_accuracy"])
+    acc = best["tag_only_accuracy"]
+    print(f"\n  → floor for {cond_id}: {acc:.3f}  ({best['verdict']}, "
+          f"via {best['rule'].split('  [')[0]})")
     if acc >= 0.55:
-        print(f"      → FLOOR for this condition is {acc:.1%}, not 50%. "
-              f"Compare {cond_id} against {acc:.1%}, NOT against B.")
-    print(f"      rule: {rule_name}")
-    print(f"      P(rule fires)   positives {p_yes:.1%}   "
-          f"negatives {p_no:.1%}   separation {abs(p_yes - p_no):.1%}")
-    print(f"      n = {n:,}  ({n_pos:,} positive / {n_neg:,} negative)")
+        print(f"    Compare {cond_id} against {acc:.1%}, NOT against 0.5 or B.")
 
-    worst = sorted(((c / max(1, t), r, t) for r, (c, t) in by_rel.items()
-                    if t >= 30), reverse=True)[:5]
-    if worst:
-        print("      most-leaking relations:")
-        for a, r, t in worst:
-            print(f"        {a:6.1%}  {r}  (n={t})")
-
-    return {"condition": cond_id, "rule": rule_name, "tag_only_accuracy": acc,
-            "p_match_positive": p_yes, "p_match_negative": p_no,
-            "separation": abs(p_yes - p_no), "n": n, "verdict": verdict}
+    return {"condition": cond_id, "n": len(rows), "rules": scored,
+            "tag_only_accuracy": acc, "rule": best["rule"],
+            "p_match_positive": best["p_match_positive"],
+            "p_match_negative": best["p_match_negative"],
+            "separation": best["separation"], "verdict": best["verdict"]}
 
 
 def main() -> None:
@@ -209,11 +272,20 @@ def main() -> None:
 
     out = [a for c in ns.condition if (a := audit(c, ns.dataset, ns.root, ns.seed))]
 
-    if out:
-        worst = max(out, key=lambda d: d["tag_only_accuracy"])
+    measured = [d for d in out if d.get("tag_only_accuracy") is not None]
+    if out and not measured:
+        print("\n" + "-" * 72)
+        print("✋ NO CONDITION PRODUCED A MEASURED FLOOR — every trivial rule "
+              "was constant.\n   Leave TYPE_TAG_FLOOR unset: an unmeasured "
+              "floor and a cleared one\n   are not the same thing, and "
+              "preflight is right to refuse.")
+    if measured:
+        worst = max(measured, key=lambda d: d["tag_only_accuracy"])
         print("\n" + "-" * 72)
         print(f"worst: {worst['condition']} at {worst['tag_only_accuracy']:.1%} "
               f"({worst['verdict']})")
+        print(f"  TYPE_TAG_FLOOR[{ns.dataset!r}] = "
+              f"{worst['tag_only_accuracy']:.3f}")
         if worst["tag_only_accuracy"] >= 0.55:
             print("\n★ WHAT TO DO — pick one, and say which in the paper:")
             print("  1. Report the tag-only accuracy as the FLOOR for C/D/E/G.")

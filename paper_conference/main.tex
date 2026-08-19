@@ -427,8 +427,12 @@ invariant}: the tag is a class name, never an entity name, so
 \texttt{entity4471 [actor]} discloses a category and not an identity, and
 conditions B and C differ in exactly one respect. And its residual leakage must
 be \emph{measured, not assumed}: we regenerate the test negatives to be
-type-consistent and re-run the one-line rule, admitting a condition only when
-that rule sits near its 0.5 floor.
+type-consistent --- a corrupted tail is drawn uniformly from the entities
+observed as tails of the same relation --- and re-run the one-line rule,
+admitting a condition only when that rule sits near its 0.5 floor and is not
+merely constant. The distinction matters: a rule that fires on every row of
+both classes also scores 0.5 on a balanced set, and reporting that as a cleared
+floor would be an artefact of the same kind the audit exists to catch.
 
 WN11 has no such source. Its relations \emph{are} its taxonomy
 (\texttt{\_type\_of}, \texttt{\_member\_holonym}), so any type derived for it is
@@ -594,7 +598,9 @@ during this work.
 \emph{Type-tag leakage.} Auditing the type prompt showed that on
 the original YAGO3-10 negatives a single rule --- if the candidate tail's type
 tag names the query relation, answer yes --- scored 62.4\,\% with no model at
-all. Regenerating the test negatives type-consistently reduced that rule to
+all. Regenerating the test negatives type-consistently --- drawing each
+corrupted tail from the entities the same relation is observed to take ---
+reduced that rule to
 \pv{51.3}\,\% against a 0.5 floor, with a positive/negative match separation of
 \pv{0.026}; the typed conditions below use the regenerated set. Both figures
 were measured on induced tags and are being re-measured for the exogenous
