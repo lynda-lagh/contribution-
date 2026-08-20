@@ -218,31 +218,88 @@ def print_report(name: str, rep: dict) -> None:
               f"({'significant' if v.get('p_value', 1) < 0.05 else 'not significant'})")
 
 
+def _blocks(res: Path, dataset: str, cond: str | None) -> dict[str, dict]:
+    """{condition: eval json}, optionally filtered to one condition."""
+    out = {}
+    for f in sorted(res.glob(f"ch1-{dataset}-*-eval.json")):
+        d = json.loads(f.read_text(encoding="utf-8"))
+        cid = d.get("condition", f.stem)
+        if cond is None or cid == cond:
+            out[cid] = d
+    return out
+
+
 def main() -> None:
+    """
+    ★ THIS FUNCTION USED TO BE A STUB.
+
+      It printed a four-column cond/real/anon/gap table and never called
+      `full_report`, so per-relation accuracy, the confusion matrix, the
+      degeneracy check, calibration and the risk-coverage curve — all defined
+      above, all depended on by the paper's Threats and per-relation
+      discussion — were dead code. It also took no --condition argument, so
+      the notebook cell that loops over conditions failed five times with
+      `unrecognized arguments: --condition A` and the loop looked like it had
+      simply produced no output.
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("--results", default="results")
     ap.add_argument("--dataset", default="WN11")
+    ap.add_argument("--condition", nargs="+", default=None, metavar="ID",
+                    help="one or more condition ids; default = all found")
+    ap.add_argument("--side", default="real", choices=("real", "anon"),
+                    help="which test set to report on")
+    ap.add_argument("--baseline", default="A",
+                    help="condition to McNemar against (skip with '')")
+    ap.add_argument("--summary-only", action="store_true")
     ns = ap.parse_args()
 
     res = Path(ns.results)
-    files = sorted(res.glob("ch1-*-eval.json"))
-    if not files:
-        raise SystemExit(f"no ch1-*-eval.json in {res}/ — run chapter1.run --evaluate")
-
-    summary = []
-    for f in files:
-        d = json.loads(f.read_text(encoding="utf-8"))
-        summary.append((d.get("condition", f.stem), d.get("acc_real"),
-                        d.get("acc_anon"), d.get("gap")))
+    found = _blocks(res, ns.dataset, None)
+    if not found:
+        raise SystemExit(
+            f"no ch1-{ns.dataset}-*-eval.json in {res}/ — "
+            f"run chapter1.run --evaluate first")
 
     print("=" * 68)
-    print("CHAPTER 1 — SUMMARY")
+    print(f"CHAPTER 1 — SUMMARY  ({ns.dataset})")
     print("=" * 68)
-    print(f"{'cond':6s} {'real':>9s} {'anon':>9s} {'gap':>9s}")
-    for cid, ar, aa, g in summary:
+    print(f"{'cond':6s} {'real':>9s} {'anon':>9s} {'gap':>9s} {'chance':>8s}")
+    for cid, d in sorted(found.items()):
         f_ = lambda v: f"{v:9.4f}" if isinstance(v, (int, float)) else "        —"
-        print(f"{cid:6s} {f_(ar)} {f_(aa)} {f_(g)}")
-    print("\n★ the GAP column is the contribution — a single accuracy cannot express it")
+        ch = d.get("chance_level")
+        print(f"{cid:6s} {f_(d.get('acc_real'))} {f_(d.get('acc_anon'))} "
+              f"{f_(d.get('gap'))} {ch if ch is None else f'{ch:8.3f}'}")
+    print("\n★ the GAP column is the contribution — a single accuracy cannot "
+          "express it")
+    if ns.summary_only:
+        return
+
+    want = ns.condition or sorted(found)
+
+    # baseline correctness vector, for McNemar. Must be the SAME rows.
+    base = found.get(ns.baseline) if ns.baseline else None
+    base_correct = (base or {}).get(f"_{ns.side}", {}).get("correct")
+
+    for cid in want:
+        d = found.get(cid)
+        if d is None:
+            print(f"\n[{cid}] no eval file — skipped")
+            continue
+        blk = d.get(f"_{ns.side}") or {}
+        p, y = blk.get("p_yes"), blk.get("labels")
+        if not p or not y:
+            print(f"\n[{cid}] this eval file predates the full-array change — "
+                  f"re-run `chapter1.run --evaluate --condition {cid}` "
+                  f"(inference only) to get the detailed report")
+            continue
+        bc = base_correct if (cid != ns.baseline and base_correct
+                              and len(base_correct) == len(y)) else None
+        rep = full_report(p, y, blk.get("records") or [], baseline_correct=bc)
+        label = f"{ns.dataset} · condition {cid} · {ns.side} test set"
+        if bc:
+            label += f"   [McNemar vs {ns.baseline}]"
+        print_report(label, rep)
 
 
 if __name__ == "__main__":

@@ -595,17 +595,30 @@ during this work.
 \subsection{Two artefacts removed before use}
 \label{sec:artefacts}
 
-\emph{Type-tag leakage.} Auditing the type prompt showed that on
-the original YAGO3-10 negatives a single rule --- if the candidate tail's type
-tag names the query relation, answer yes --- scored 62.4\,\% with no model at
-all. Regenerating the test negatives type-consistently --- drawing each
-corrupted tail from the entities the same relation is observed to take ---
-reduced that rule to
-\pv{51.3}\,\% against a 0.5 floor, with a positive/negative match separation of
-\pv{0.026}; the typed conditions below use the regenerated set. Both figures
-were measured on induced tags and are being re-measured for the exogenous
-inventory, where the corresponding trivial rule is not ``the tag names the
-relation'' but ``the tail's class lies in the training range of the relation''.
+\emph{Type-tag leakage.} A type tag can answer the question on its own, and how
+much it does is a property of the tag source and the negatives together, so we
+measure it for each combination we use. With \emph{induced} tags and randomly
+corrupted negatives, the one-line rule \emph{if the candidate tail's tag names
+the query relation, answer yes} scored 62.4\,\% with no model at all: 12.4
+points of free accuracy on a prompt of our own design. Regenerating the test
+negatives type-consistently --- drawing each corrupted tail from the entities
+the same relation is observed to take --- reduced it to 51.3\,\%. Moving to the
+exogenous inventory reduces it again, to 50.7\,\% with a firing separation of
+0.014 between positives and negatives, and conditions C and G return the
+identical figure, which is the empirical form of the invariance the design
+requires. The residue is concentrated in a few small relations
+(\texttt{happenedIn} 59.5\,\%, $n=42$; \texttt{isCitizenOf} 56.7\,\%, $n=30$),
+so we report per-relation accuracy alongside the aggregate.
+
+The exogenous rule is \emph{tail class equals the relation's most common tail
+class}, and choosing it is not arbitrary. The obvious alternative --- tail class
+lies in the relation's observed range --- is \emph{vacuous} on this test set: the
+negative sampler draws from that range, so the rule fires on 100\,\% of both
+classes and scores exactly 0.5. A constant rule and a cleared floor produce the
+same number on a balanced set, and only the firing rates distinguish them. We
+therefore report the firing rates with every floor and treat a saturated rule as
+unmeasured rather than clean.
+
 The same audit on
 WN11 returns 56.8\,\% with a separation of 0.136, concentrated in the taxonomic
 relations (\texttt{\_type\_of} 72.5\,\%, \texttt{\_member\_holonym} 71.4\,\%),
@@ -729,9 +742,9 @@ terms. After both controls, $\mathrm{MRR}=0.1336$ against a floor of 0.0900.
 Note that the memorisation share, $[m(A)-m(B)]/[m(A)-c] = 94.0$\,\%, does not
 depend on S; only its division into binding and readability does. Third, type
 text does not substitute for names: C exceeds chance by \pv{0.0045} and ranks
-below B, on a test set whose tag-only floor was measured at \pv{0.513} with a
-separation of 0.026, so the leak audited in Section~\ref{sec:artefacts} does not
-explain the result.
+below B, on a test set whose tag-only floor was measured at 0.507 with a
+firing separation of 0.014, so the leak audited in Section~\ref{sec:artefacts}
+does not explain the result.
 
 \subsection{Triple classification}
 
@@ -795,7 +808,7 @@ anonymised data ($0.7465$ vs $0.5080$, chance $0.5$) gives an above-chance signa
 of $0.2465$, of which $0.2385$ is removed by anonymisation: a memorisation share
 of 96.8\,\%, against 94.0\,\% from ranking. Condition C agrees more sharply
 still: its anonymised accuracy is \pv{$0.5160$} against the measured tag-only
-floor of \pv{$0.513$}, a margin of \pv{$+0.0030$}, and in ranking it exceeds chance by
+floor of $0.507$, a margin of \pv{$+0.009$}, and in ranking it exceeds chance by
 \pv{$+0.0045$}. Two protocols with different floors both place C at its floor.
 
 \subsection{Comparison with the published pipeline}

@@ -287,12 +287,19 @@ def evaluate_both(cfg: dict, cond, dataset: str, adapter: str, limit: int = 2000
             "seen_both": recs[i].get("seen_both"),
         } for i in sorted(idx)]
 
-    # Trim the bulky arrays before saving. `records` holds every full prompt
-    # (~200 kB per side) and `confidences` duplicates p_yes; both go.
-    # ★ `correct` and `labels` now STAY. They are what the exact metrics in
-    #   chapter1/compare.py need, and keeping them is the difference between
-    #   an AUC on 2,000 rows and one on 30.
+    # Trim before saving. `confidences` duplicates p_yes and goes entirely;
+    # `records` keeps every field EXCEPT the rendered prompt, which is the only
+    # bulky one (~200 kB per side).
+    # ★ `correct`, `labels` and the light records now STAY:
+    #     compare.py  needs labels + p_yes + correct for exact AUC / F1 /
+    #                 McNemar on all 2,000 rows instead of a 30-row sample
+    #     report.py   needs `relation` for the per-relation table and
+    #                 `seen_*` for the familiarity split, and got neither when
+    #                 records were dropped wholesale
     for k in ("_real", "_anon"):
-        out[k] = {kk: vv for kk, vv in out[k].items()
-                  if kk not in ("records", "confidences")}
+        blk = out[k]
+        light = [{kk: vv for kk, vv in r.items() if kk != "instruction"}
+                 for r in (blk.get("records") or [])]
+        out[k] = {kk: vv for kk, vv in blk.items() if kk != "confidences"}
+        out[k]["records"] = light
     return out

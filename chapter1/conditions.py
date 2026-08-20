@@ -247,20 +247,32 @@ TYPE_TAG_FLOOR = {
     # measured on the TYPE-CONSISTENT test set. Re-run check_type_leak after ANY
     # change to test.tsv — this number is only valid for the set it was measured on.
     #
-    # ✋ INVALIDATED 2026-08-19. 0.513 was measured while build_types was still
-    #    falling back to INDUCED tags. YAGO's exogenous classes are now available
-    #    at 99.9% coverage, so C/D/E/G carry a completely different tag inventory
-    #    (`football_team`, not `playsFor::tail`) and a floor measured on the old
-    #    one bounds nothing. The old rule cannot even FIRE on the new tags — it
-    #    would have returned a vacuous 0.500 and printed "clean".
+    # ★ RE-MEASURED 2026-08-19 on the EXOGENOUS inventory (286 YAGO classes,
+    #   99.9% coverage), C and G identical as the design requires:
     #
-    #    None is deliberate: floor_for() falls back to 0.5 and preflight REFUSES
-    #    to start, which is the correct behaviour for an unmeasured floor.
+    #       MODAL  tail class == the relation's most common tail class
+    #              0.507   fires pos 83.5% / neg 82.0%   separation 0.014   ✓
+    #       RANGE  tail class in the relation's training range
+    #              0.500   fires pos 100% / neg 100%     separation 0.000   ✋
     #
-    #      python -m chapter1.check_type_leak --dataset YAGO3-10 --condition C G
+    #   RANGE is VACUOUS here and must never be quoted: make_test_negatives
+    #   draws each corrupted tail from the entities observed as tails of r, so
+    #   its class is in the range by construction. The rule restates the
+    #   sampler, fires on everything, and scores the base rate. See
+    #   check_type_leak.saturated().
     #
-    #    then put the number here.  [was: 0.513, separation 0.026]
-    "YAGO3-10": None,
+    #   0.507 is the honest floor and it is 0.7 points, not 12.4. The switch
+    #   from induced to exogenous tags did not merely shrink the leak, it
+    #   removed its mechanism: positives and negatives are now drawn from the
+    #   same class distribution.
+    #
+    #   Residue is concentrated in a few small relations — happenedIn 59.5%
+    #   (n=42), isCitizenOf 56.7% (n=30), isConnectedTo 54.7% (n=300). Report
+    #   per-relation accuracy, not only the aggregate.
+    #
+    #   [history: 0.624 induced + random negatives -> 0.513 induced +
+    #    type-consistent negatives -> 0.507 exogenous + type-consistent]
+    "YAGO3-10": 0.507,
 
     # ✋ MEASURED 2026-08-16, and it is a MATERIAL LEAK — do NOT run C/D/E/G on
     #    WN11 until the test negatives are regenerated type-consistently.

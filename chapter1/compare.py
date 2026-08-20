@@ -112,7 +112,8 @@ def prf(pred: list[int], labels: list[int]) -> dict:
     return out
 
 
-def mcnemar(correct_a: list[bool], correct_b: list[bool]) -> dict:
+def mcnemar(correct_a: list[bool], correct_b: list[bool],
+            name_a: str = "A", name_b: str = "B") -> dict:
     """
     ★ THE RIGHT TEST for two models on the SAME test set.
 
@@ -128,9 +129,13 @@ def mcnemar(correct_a: list[bool], correct_b: list[bool]) -> dict:
         return {"b": 0, "c": 0, "p": 1.0,
                 "reading": "the two models are correct on exactly the same rows"}
     p = min(1.0, 2 * sum(comb(n, k) for k in range(min(b, c) + 1)) / 2 ** n)
+    # ★ the names were hardcoded "A" and "B", so every comparison printed
+    #   "A right / B wrong" — including `A vs G`, where the second model is G.
+    #   Cosmetic in the code, not in a paper table.
     return {"b": b, "c": c, "p": p,
-            "reading": (f"A right / B wrong on {b} rows, B right / A wrong on "
-                        f"{c}; exact two-sided p = {p:.2g}"
+            "reading": (f"{name_a} right / {name_b} wrong on {b} rows, "
+                        f"{name_b} right / {name_a} wrong on {c}; "
+                        f"exact two-sided p = {p:.2g}"
                         + ("  → a real difference" if p < 0.05 else
                            "  → NOT distinguishable at this sample size"))}
 
@@ -242,8 +247,8 @@ def main() -> None:
                           f"{len(blocks[c])} rows, so the arms are not paired. "
                           f"Re-evaluate both at the same --limit.")
                     continue
-                r = mcnemar(blocks[base], blocks[c])
-                print(f"   {base} vs {c}: {r['reading']}")
+                r = mcnemar(blocks[base], blocks[c], base, c)
+                print(f"   {r['reading']}")
         if not blocks:
             print("\n  no per-row probabilities saved yet — re-run the evaluation "
                   "with the current chapter1/evaluate.py (no retraining needed; "
