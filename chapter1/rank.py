@@ -81,7 +81,24 @@ def rank_queries(model, tokenizer, kg: KG, queries: list[Triple],
 
     rng = random.Random(seed)
     ents = list(kg.ent2txt)
+
+    # ★★ BUG FIX. render() consults pv.types ONLY. A typed CONDITION (C, D, E,
+    #    G) carries its switch in cond.types, not in the prompt variant, so P0
+    #    rendered NO tag at all: every typed arm was ranked on untyped prompts
+    #    while its adapter had been trained on typed ones. Same train/test
+    #    mismatch as the condition-S bug, one level up.
+    #
+    #    chapter1/data.py folded the condition switch into the variant when the
+    #    identical bug hit the builder (see build_condition); rank.py never did.
+    #
+    #    Evidence it was live, from the 2026-08-20 run: untuned G came out
+    #    BYTE-IDENTICAL to untuned A (MRR 0.6072, H@1 0.4720, MR 4.7180) and
+    #    untuned C identical to untuned B (MRR 0.0844, MR 27.2280). If the tags
+    #    had been rendered those pairs could not have matched to four decimals.
     pv = PROMPTS[prompt_id]
+    if types is not None and not pv.types:
+        from dataclasses import replace
+        pv = replace(pv, types=True)
     demos = demo_pool(kg) if pv.demonstrations else None
 
     # ── P5-P7 context, built ONCE ───────────────────────────────────────────
@@ -106,6 +123,18 @@ def rank_queries(model, tokenizer, kg: KG, queries: list[Triple],
     known: dict[tuple[str, str], set[str]] = {}
     for t in (*kg.train, *getattr(kg, "valid", ()), *kg.test):
         known.setdefault((t.head, t.relation), set()).add(t.tail)
+
+    # ✋ prove the tag reaches the prompt before spending 25,000 forward passes
+    if types is not None:
+        probe = render(Triple(queries[0].head, queries[0].relation, ents[0], None),
+                       kg, pv, types, None)
+        if "[" not in probe:
+            raise SystemExit(
+                "\n\u2717 typed condition, but the rendered prompt carries no tag:\n"
+                f"    {probe[:120]}\n"
+                "  The adapter was trained WITH tags; ranking it without them is a\n"
+                "  train/test mismatch. Check pv.types and build_types().")
+        print(f"[rank] typed prompt confirmed: {probe[:90]}")
 
     from src.utils.progress import eta_note, track
     eta_note(len(queries) * n_way, 0.012, "forward passes")
