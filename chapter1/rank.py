@@ -238,6 +238,29 @@ def metrics(ranks: list[dict]) -> dict:
 def load(base: str, adapter: str | None):
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    # ✋ A local path that does not exist is not an error to transformers: it
+    #   falls back to treating the string as a HuggingFace repo id, hits the
+    #   Hub, and dies with a 401 that names a repo nobody ever created. That
+    #   error says "Unauthorized" when the real cause is "wrong directory".
+    #   Fail here instead, and say where we looked.
+    if adapter is not None:
+        from pathlib import Path
+        ad = Path(adapter)
+        if not ad.is_dir():
+            import os
+            raise SystemExit(
+                f"\n\u2717 adapter directory not found: {adapter}\n"
+                f"  resolved to : {ad.resolve()}\n"
+                f"  working dir : {os.getcwd()}\n"
+                "  Pass an ABSOLUTE path, or cd to the directory that contains\n"
+                "  checkpoints/. Nothing was downloaded and nothing was scored.")
+        if not (ad / "adapter_config.json").exists():
+            raise SystemExit(
+                f"\n\u2717 {adapter} exists but holds no adapter_config.json.\n"
+                f"  contents: {sorted(p.name for p in ad.iterdir())[:8]}\n"
+                "  This is not a PEFT checkpoint directory.")
+
     tok = AutoTokenizer.from_pretrained(adapter or base)
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
@@ -314,9 +337,16 @@ def main() -> None:
                else "PERMUTED" if getattr(cond, "shuffle", False) else "real")
     print(f"[rank] {len(queries)} queries · {ns.n_way}-way · condition {ns.condition} "
           f"· prompt {ns.prompt} · surface form: {surface}")
-    print(f"[rank] example query head: {queries[0].head!r}  "
-          f"(if this looks like a real name under condition S, the permutation "
-          f"did not apply)")
+    # The ID is identical in every condition -- permutation and anonymisation
+    # happen in ent2txt, at render time. Printing the ID here can never detect a
+    # failed permutation: it shows a real name under S even on a correct run.
+    # Print what the model will actually read.
+    _h = kg.ent2txt.get(queries[0].head, queries[0].head)
+    print(f"[rank] example query head: id={queries[0].head!r} -> rendered as {_h!r}")
+    if surface == "PERMUTED" and _h == queries[0].head.replace("_", " "):
+        raise SystemExit(
+            "\n\u2717 condition S, but the rendered head equals its own id.\n"
+            "  The permutation did not reach ent2txt; S is not a matched control.")
     print(f"[rank] test labels: {'±1 present' if labelled else 'absent -> all positives'} "
           f"| {len(kg.ent2txt):,} entities in the candidate pool")
 
