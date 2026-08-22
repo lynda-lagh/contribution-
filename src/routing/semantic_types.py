@@ -318,10 +318,43 @@ def yago_types(kg: KG, root: str = "data", dataset: str = "YAGO3-10") -> dict[st
 #   did so by exact match, and the fallback never fired for anything; meanwhile
 #   WN18RR-ind raised even though WordNet types apply to it perfectly well.
 #   A prefix rule is what the intent always was.
+def hetionet_types(kg: KG, root: str = "data", dataset: str = "Hetionet") -> dict[str, str]:
+    """
+    Entity -> Hetionet metanode kind, read from `data/{dataset}/entity2type.txt`.
+
+    Hetionet is the easy case this module keeps wishing for. Every node ships a
+    `kind` in the source JSON -- Compound, Disease, Gene, Pathway, Anatomy,
+    Side Effect, Symptom, Pharmacologic Class, and three GO branches. That kind
+    is part of the graph SCHEMA, declared when the node was created; it is not
+    computed from the edges under test. So it is exogenous in the sense that
+    matters here, and no external download is needed.
+
+    Two properties to report beside any typed result, because both bound what a
+    typed condition can show:
+
+      * the inventory is COARSE -- 11 classes, against 286 for YAGO3-10. A tag
+        says "this is a Gene", not which gene, so it carries less than a YAGO
+        class does.
+      * it is CONCENTRATED -- Gene alone is ~44% of nodes, Disease only ~0.3%.
+
+    And one specific leak to measure rather than assume: metaedges are typed, so
+    `treats` runs Compound -> Disease and nothing else. "Is the tail a Disease?"
+    is therefore a real rule with real accuracy on a `treats` query. That is what
+    check_type_leak exists to score. Do not skip it here.
+
+    Same two-column format as every other provider:
+
+        Compound::DB00331 \t Compound
+        Disease::DOID:10652 \t Disease
+    """
+    return yago_types(kg, root=root, dataset=dataset)
+
+
 PROVIDERS: dict[str, object] = {
     "WN11": wordnet_types, "WN18RR": wordnet_types,
     "NELL-995": nell_types, "NELL": nell_types,
     "YAGO3-10": yago_types,
+    "Hetionet": hetionet_types,
 }
 
 
@@ -344,7 +377,8 @@ def semantic_types(kg: KG, dataset: str, root: str = "data") -> dict[str, str]:
     # ★ `root` must be threaded through: build_condition takes --root and
     #   yago_types reads a file under it. Defaulting to "data" inside the
     #   provider meant a non-default root was silently ignored.
-    return fn(kg, root=root, dataset=dataset) if fn is yago_types else fn(kg)
+    return (fn(kg, root=root, dataset=dataset)
+            if fn in (yago_types, hetionet_types) else fn(kg))
 
 
 def coverage(types: dict[str, str]) -> dict:
