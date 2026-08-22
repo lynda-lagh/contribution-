@@ -1,0 +1,375 @@
+{
+  "config": {
+    "seed": 42,
+    "model": {
+      "name": "Qwen/Qwen2.5-1.5B-Instruct",
+      "dtype": "fp16",
+      "trust_remote_code": false,
+      "pad_token": "eos",
+      "attn_implementation": "sdpa"
+    },
+    "data": {
+      "root": "data",
+      "train_triples": 10000,
+      "sampling": "stratified_by_relation",
+      "min_per_relation": 10,
+      "val_size": 1000,
+      "test_subset": 2000,
+      "negatives": "random"
+    },
+    "tokenizer": {
+      "cutoff_len": 512,
+      "padding": "dynamic",
+      "add_eos_token": true
+    },
+    "prompt": {
+      "template": "alpaca",
+      "include_entity_description": true,
+      "regenerate_entity_description": false,
+      "include_relation_description": false,
+      "include_exclusion_list": false,
+      "include_type_tag": false,
+      "include_neighbours": false
+    },
+    "peft": {
+      "method": "lora",
+      "r": 8,
+      "alpha": 16,
+      "dropout": 0.05,
+      "target_modules": [
+        "q_proj",
+        "v_proj"
+      ],
+      "bias": "none",
+      "task_type": "CAUSAL_LM",
+      "boft_block_size": 4,
+      "boft_n_butterfly_factor": 2
+    },
+    "train": {
+      "epochs": 2,
+      "learning_rate": 0.0003,
+      "micro_batch_size": 4,
+      "grad_accum_steps": 8,
+      "warmup_steps": 100,
+      "optim": "adamw_torch",
+      "gradient_checkpointing": true,
+      "torch_compile": false,
+      "fp16": true,
+      "logging_steps": 20,
+      "eval_steps": 250,
+      "save_steps": 250,
+      "save_total_limit": 2,
+      "adapter_only_checkpoint": true,
+      "report_to": "wandb"
+    },
+    "infer": {
+      "greedy": {
+        "do_sample": false,
+        "max_new_tokens": 16
+      },
+      "sampling": {
+        "do_sample": true,
+        "top_p": 0.95,
+        "top_k": 20,
+        "num_return_sequences": 10
+      }
+    },
+    "output": {
+      "results_dir": "results",
+      "adapter_dir": "checkpoints"
+    }
+  },
+  "env": {
+    "torch": "2.10.0+cu128",
+    "cuda": "12.8",
+    "n_gpu": 1,
+    "gpus": [
+      "Tesla T4"
+    ],
+    "bf16_supported": true,
+    "transformers": "4.57.6",
+    "peft": "0.19.1",
+    "trl": "1.10.0",
+    "datasets": "5.0.0",
+    "peft_env": "official",
+    "has_mora": false,
+    "has_boft": true
+  },
+  "run_name": "ch1-YAGO3-10-G",
+  "peft_method": "lora",
+  "model": "Qwen/Qwen2.5-1.5B-Instruct",
+  "n_instances": 20000,
+  "train_runtime_s": 1986.8766,
+  "train_loss": 0.04801500350337237,
+  "steps": 0.598,
+  "peak_vram_gb": 3.939031552,
+  "output_dir": "checkpoints/ch1-YAGO3-10-G",
+  "curve": {
+    "verdict": "\u2705 GOOD FIT \u2014 eval_loss plateaued near its minimum",
+    "final_train_loss": 0.0249,
+    "best_eval_loss": 0.03652,
+    "last_eval_loss": 0.03718,
+    "best_step": 750,
+    "total_steps": 1000,
+    "relative_rise_after_best": 0.01789,
+    "train_curve": [
+      [
+        20,
+        0.4942
+      ],
+      [
+        40,
+        0.1549
+      ],
+      [
+        60,
+        0.069
+      ],
+      [
+        80,
+        0.059
+      ],
+      [
+        100,
+        0.0617
+      ],
+      [
+        120,
+        0.0566
+      ],
+      [
+        140,
+        0.046
+      ],
+      [
+        160,
+        0.0539
+      ],
+      [
+        180,
+        0.052
+      ],
+      [
+        200,
+        0.0483
+      ],
+      [
+        220,
+        0.0447
+      ],
+      [
+        240,
+        0.0409
+      ],
+      [
+        260,
+        0.0475
+      ],
+      [
+        280,
+        0.0391
+      ],
+      [
+        300,
+        0.0478
+      ],
+      [
+        320,
+        0.0435
+      ],
+      [
+        340,
+        0.0361
+      ],
+      [
+        360,
+        0.0463
+      ],
+      [
+        380,
+        0.0363
+      ],
+      [
+        400,
+        0.0446
+      ],
+      [
+        420,
+        0.045
+      ],
+      [
+        440,
+        0.0378
+      ],
+      [
+        460,
+        0.0367
+      ],
+      [
+        480,
+        0.0396
+      ],
+      [
+        500,
+        0.0376
+      ],
+      [
+        520,
+        0.0402
+      ],
+      [
+        540,
+        0.0365
+      ],
+      [
+        560,
+        0.0379
+      ],
+      [
+        580,
+        0.0335
+      ],
+      [
+        600,
+        0.0391
+      ],
+      [
+        620,
+        0.0341
+      ],
+      [
+        640,
+        0.0372
+      ],
+      [
+        660,
+        0.0334
+      ],
+      [
+        680,
+        0.0335
+      ],
+      [
+        700,
+        0.0347
+      ],
+      [
+        720,
+        0.0367
+      ],
+      [
+        740,
+        0.0382
+      ],
+      [
+        760,
+        0.0359
+      ],
+      [
+        780,
+        0.032
+      ],
+      [
+        800,
+        0.0351
+      ],
+      [
+        820,
+        0.0265
+      ],
+      [
+        840,
+        0.0276
+      ],
+      [
+        860,
+        0.0317
+      ],
+      [
+        880,
+        0.0357
+      ],
+      [
+        900,
+        0.03
+      ],
+      [
+        920,
+        0.0292
+      ],
+      [
+        940,
+        0.0316
+      ],
+      [
+        960,
+        0.0359
+      ],
+      [
+        980,
+        0.0319
+      ],
+      [
+        1000,
+        0.0346
+      ],
+      [
+        1020,
+        0.0318
+      ],
+      [
+        1040,
+        0.0332
+      ],
+      [
+        1060,
+        0.0277
+      ],
+      [
+        1080,
+        0.0273
+      ],
+      [
+        1100,
+        0.0285
+      ],
+      [
+        1120,
+        0.0297
+      ],
+      [
+        1140,
+        0.0311
+      ],
+      [
+        1160,
+        0.0305
+      ],
+      [
+        1180,
+        0.0249
+      ]
+    ],
+    "eval_curve": [
+      [
+        250,
+        0.04661
+      ],
+      [
+        500,
+        0.0388
+      ],
+      [
+        750,
+        0.03652
+      ],
+      [
+        1000,
+        0.03718
+      ]
+    ]
+  },
+  "condition": "G",
+  "isolates": "\u2605\u2605 do types help when names ARE available? The field's actual claim",
+  "reference": "CATS +7.2% MRR \u00b7 Knit 0.2240\u21920.2490 \u00b7 RealKGC +3.83% \u2014 all with real names, none isolating the type contribution"
+}

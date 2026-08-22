@@ -1,0 +1,48 @@
+{
+  "steps": [
+    {
+      "step": "negatives + leak measured",
+      "at": "2026-08-19T19:24:54"
+    },
+    {
+      "step": "evaluation (both test sets)",
+      "at": "2026-08-20T00:34:11"
+    },
+    {
+      "step": "ranking A/S/B",
+      "at": "2026-08-20T01:39:03"
+    },
+    {
+      "step": "D + E trained",
+      "at": "2026-08-20T03:26:28"
+    },
+    {
+      "step": "D + E evaluated",
+      "at": "2026-08-20T03:35:22"
+    },
+    {
+      "step": "full report",
+      "at": "2026-08-20T03:37:01"
+    },
+    {
+      "step": "comparison vs KG-LLM Table II",
+      "at": "2026-08-20T03:37:21"
+    },
+    {
+      "step": "ranked C",
+      "at": "2026-08-20T03:58:02"
+    },
+    {
+      "step": "ranked G",
+      "at": "2026-08-20T04:18:50"
+    },
+    {
+      "step": "ranked D",
+      "at": "2026-08-20T04:39:21"
+    },
+    {
+      "step": "ranked E",
+      "at": "2026-08-20T04:59:52"
+    }
+  ]
+}
