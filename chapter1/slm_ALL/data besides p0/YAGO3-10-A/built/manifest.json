@@ -1,0 +1,39 @@
+{
+  "condition": "A",
+  "prompt": "P0",
+  "dataset": "YAGO3-10",
+  "seed": 42,
+  "anonymised": false,
+  "types": false,
+  "require_semantic": false,
+  "negatives": "random",
+  "n_negatives": 1,
+  "n_triples_sampled": 10000,
+  "n_train_instances": 20000,
+  "n_test_instances": 10000,
+  "test_positive_rate": 0.5,
+  "context_coverage": null,
+  "n_entities_seen_in_training": 14319,
+  "n_entities_total": 123182,
+  "seen_coverage": 0.11624263285220243,
+  "test_seen_both_rate": 0.0825,
+  "isolates": "baseline \u2014 KG-LLM's exact recipe",
+  "reference": "KG-LLM (ICASSP 2025): random.choice(ent_list), 1 negative per positive",
+  "example_positive": {
+    "instruction": "Is this true: A\u00efmen Demai plays for Kaala Patthar?",
+    "input": "",
+    "output": "No, this is not true."
+  },
+  "example_test": {
+    "instruction": "Is this true: Stan Collymore plays for England national football team?",
+    "input": "",
+    "output": "Yes, this is true.",
+    "label": 1,
+    "head": "Stan_Collymore",
+    "relation": "playsFor",
+    "tail": "England_national_football_team",
+    "seen_head": true,
+    "seen_tail": true,
+    "seen_both": true
+  }
+}

@@ -357,9 +357,35 @@ def main() -> None:
     tag = ns.tag or f"ch1rank-{ns.dataset}-{ns.condition}-{ns.prompt}"
     # ★ was ranks[:200], which threw away 60% of the per-query records and
     #   widened every bootstrap CI by ~1.6x for no saving worth having.
+    # ★ RECORD WHAT WAS ACTUALLY RENDERED, not what the yaml says.
+    #   save_result embeds cfg verbatim, and cfg["prompt"]["include_type_tag"] is
+    #   hardcoded false in configs/base.yaml. rank_queries overrides the prompt
+    #   variant on a LOCAL copy, so that field can never reflect a typed run and
+    #   is useless as after-the-fact evidence. Reconstruct the effective variant
+    #   here and store it, plus one rendered prompt, so a reader can see the tag
+    #   instead of trusting a flag.
+    from dataclasses import replace as _replace
+    _pv = PROMPTS[ns.prompt]
+    if types is not None and not _pv.types:
+        _pv = _replace(_pv, types=True)
+    _example = render(Triple(queries[0].head, queries[0].relation,
+                             ents_pool[0] if (ents_pool := list(kg.ent2txt)) else "",
+                             None), kg, _pv, types, None)
+    effective = {"types": _pv.types, "instruction": _pv.instruction,
+                 "demonstrations": _pv.demonstrations,
+                 "relation_desc": getattr(_pv, "relation_desc", False),
+                 "neighbours": getattr(_pv, "neighbours", 0),
+                 "paths": getattr(_pv, "paths", 0),
+                 "types_source_size": (len(types) if types else 0)}
+    print(f"[rank] effective prompt: {effective}")
+    print(f"[rank] example rendered: {_example[:120]}")
+
     save_result(cfg, tag, {"metrics": m, "condition": ns.condition,
                            "prompt": ns.prompt, "adapter": ns.adapter,
-                           "surface_form": surface, "ranks": ranks})
+                           "surface_form": surface,
+                           "prompt_effective": effective,
+                           "example_prompt": _example,
+                           "ranks": ranks})
 
     print("\n" + "=" * 60)
     print(f"{tag}   ({m['protocol']})")

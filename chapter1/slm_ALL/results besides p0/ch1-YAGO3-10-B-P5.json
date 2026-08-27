@@ -1,0 +1,375 @@
+{
+  "config": {
+    "seed": 42,
+    "model": {
+      "name": "Qwen/Qwen2.5-1.5B-Instruct",
+      "dtype": "fp16",
+      "trust_remote_code": false,
+      "pad_token": "eos",
+      "attn_implementation": "sdpa"
+    },
+    "data": {
+      "root": "data",
+      "train_triples": 10000,
+      "sampling": "stratified_by_relation",
+      "min_per_relation": 10,
+      "val_size": 1000,
+      "test_subset": 2000,
+      "negatives": "random"
+    },
+    "tokenizer": {
+      "cutoff_len": 512,
+      "padding": "dynamic",
+      "add_eos_token": true
+    },
+    "prompt": {
+      "template": "alpaca",
+      "include_entity_description": true,
+      "regenerate_entity_description": false,
+      "include_relation_description": false,
+      "include_exclusion_list": false,
+      "include_type_tag": false,
+      "include_neighbours": false
+    },
+    "peft": {
+      "method": "lora",
+      "r": 8,
+      "alpha": 16,
+      "dropout": 0.05,
+      "target_modules": [
+        "q_proj",
+        "v_proj"
+      ],
+      "bias": "none",
+      "task_type": "CAUSAL_LM",
+      "boft_block_size": 4,
+      "boft_n_butterfly_factor": 2
+    },
+    "train": {
+      "epochs": 2,
+      "learning_rate": 0.0003,
+      "micro_batch_size": 4,
+      "grad_accum_steps": 8,
+      "warmup_steps": 100,
+      "optim": "adamw_torch",
+      "gradient_checkpointing": true,
+      "torch_compile": false,
+      "fp16": true,
+      "logging_steps": 20,
+      "eval_steps": 250,
+      "save_steps": 250,
+      "save_total_limit": 2,
+      "adapter_only_checkpoint": true,
+      "report_to": "wandb"
+    },
+    "infer": {
+      "greedy": {
+        "do_sample": false,
+        "max_new_tokens": 16
+      },
+      "sampling": {
+        "do_sample": true,
+        "top_p": 0.95,
+        "top_k": 20,
+        "num_return_sequences": 10
+      }
+    },
+    "output": {
+      "results_dir": "results",
+      "adapter_dir": "checkpoints"
+    }
+  },
+  "env": {
+    "torch": "2.10.0+cu128",
+    "cuda": "12.8",
+    "n_gpu": 1,
+    "gpus": [
+      "Tesla T4"
+    ],
+    "bf16_supported": true,
+    "transformers": "4.57.6",
+    "peft": "0.19.1",
+    "trl": "1.10.0",
+    "datasets": "5.0.0",
+    "peft_env": "official",
+    "has_mora": false,
+    "has_boft": true
+  },
+  "run_name": "ch1-YAGO3-10-B-P5",
+  "peft_method": "lora",
+  "model": "Qwen/Qwen2.5-1.5B-Instruct",
+  "n_instances": 20000,
+  "train_runtime_s": 2454.2633,
+  "train_loss": 0.12009318915481118,
+  "steps": 0.484,
+  "peak_vram_gb": 4.012767232,
+  "output_dir": "checkpoints/ch1-YAGO3-10-B-P5",
+  "curve": {
+    "verdict": "\u2705 GOOD FIT \u2014 eval_loss plateaued near its minimum",
+    "final_train_loss": 0.1071,
+    "best_eval_loss": 0.10681,
+    "last_eval_loss": 0.10681,
+    "best_step": 1000,
+    "total_steps": 1000,
+    "relative_rise_after_best": 0.0,
+    "train_curve": [
+      [
+        20,
+        0.7551
+      ],
+      [
+        40,
+        0.2302
+      ],
+      [
+        60,
+        0.1104
+      ],
+      [
+        80,
+        0.1097
+      ],
+      [
+        100,
+        0.1074
+      ],
+      [
+        120,
+        0.1078
+      ],
+      [
+        140,
+        0.1069
+      ],
+      [
+        160,
+        0.1093
+      ],
+      [
+        180,
+        0.1093
+      ],
+      [
+        200,
+        0.1071
+      ],
+      [
+        220,
+        0.1067
+      ],
+      [
+        240,
+        0.1093
+      ],
+      [
+        260,
+        0.1075
+      ],
+      [
+        280,
+        0.107
+      ],
+      [
+        300,
+        0.1072
+      ],
+      [
+        320,
+        0.1073
+      ],
+      [
+        340,
+        0.1069
+      ],
+      [
+        360,
+        0.1069
+      ],
+      [
+        380,
+        0.1084
+      ],
+      [
+        400,
+        0.1067
+      ],
+      [
+        420,
+        0.1068
+      ],
+      [
+        440,
+        0.106
+      ],
+      [
+        460,
+        0.1067
+      ],
+      [
+        480,
+        0.1073
+      ],
+      [
+        500,
+        0.107
+      ],
+      [
+        520,
+        0.1068
+      ],
+      [
+        540,
+        0.1074
+      ],
+      [
+        560,
+        0.1075
+      ],
+      [
+        580,
+        0.1063
+      ],
+      [
+        600,
+        0.1072
+      ],
+      [
+        620,
+        0.1068
+      ],
+      [
+        640,
+        0.107
+      ],
+      [
+        660,
+        0.1068
+      ],
+      [
+        680,
+        0.106
+      ],
+      [
+        700,
+        0.1081
+      ],
+      [
+        720,
+        0.1061
+      ],
+      [
+        740,
+        0.1062
+      ],
+      [
+        760,
+        0.1067
+      ],
+      [
+        780,
+        0.1067
+      ],
+      [
+        800,
+        0.1062
+      ],
+      [
+        820,
+        0.1068
+      ],
+      [
+        840,
+        0.107
+      ],
+      [
+        860,
+        0.107
+      ],
+      [
+        880,
+        0.1067
+      ],
+      [
+        900,
+        0.1069
+      ],
+      [
+        920,
+        0.1063
+      ],
+      [
+        940,
+        0.1073
+      ],
+      [
+        960,
+        0.1069
+      ],
+      [
+        980,
+        0.1067
+      ],
+      [
+        1000,
+        0.1065
+      ],
+      [
+        1020,
+        0.1063
+      ],
+      [
+        1040,
+        0.1065
+      ],
+      [
+        1060,
+        0.1068
+      ],
+      [
+        1080,
+        0.1072
+      ],
+      [
+        1100,
+        0.1065
+      ],
+      [
+        1120,
+        0.1068
+      ],
+      [
+        1140,
+        0.1066
+      ],
+      [
+        1160,
+        0.1066
+      ],
+      [
+        1180,
+        0.1071
+      ]
+    ],
+    "eval_curve": [
+      [
+        250,
+        0.10754
+      ],
+      [
+        500,
+        0.10691
+      ],
+      [
+        750,
+        0.10684
+      ],
+      [
+        1000,
+        0.10681
+      ]
+    ]
+  },
+  "condition": "B",
+  "isolates": "ENTITY NAMES \u2014 everything else identical to A",
+  "reference": "P12 / KG-CF: the only paper in 188 testing pretraining memorisation"
+}

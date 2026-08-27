@@ -1,0 +1,39 @@
+{
+  "condition": "B",
+  "prompt": "P5",
+  "dataset": "YAGO3-10",
+  "seed": 42,
+  "anonymised": true,
+  "types": false,
+  "require_semantic": false,
+  "negatives": "random",
+  "n_negatives": 1,
+  "n_triples_sampled": 10000,
+  "n_train_instances": 20000,
+  "n_test_instances": 10000,
+  "test_positive_rate": 0.5,
+  "context_coverage": 1.0,
+  "n_entities_seen_in_training": 14319,
+  "n_entities_total": 123182,
+  "seen_coverage": 0.11624263285220243,
+  "test_seen_both_rate": 0.0825,
+  "isolates": "ENTITY NAMES \u2014 everything else identical to A",
+  "reference": "P12 / KG-CF: the only paper in 188 testing pretraining memorisation",
+  "example_positive": {
+    "instruction": "Here, 'plays for' links an athlete to a sports team they play for. Is this true: entity9689 plays for entity43615?",
+    "input": "",
+    "output": "No, this is not true."
+  },
+  "example_test": {
+    "instruction": "Here, 'plays for' links an athlete to a sports team they play for. Is this true: entity103884 plays for entity32138?",
+    "input": "",
+    "output": "Yes, this is true.",
+    "label": 1,
+    "head": "Stan_Collymore",
+    "relation": "playsFor",
+    "tail": "England_national_football_team",
+    "seen_head": true,
+    "seen_tail": true,
+    "seen_both": true
+  }
+}

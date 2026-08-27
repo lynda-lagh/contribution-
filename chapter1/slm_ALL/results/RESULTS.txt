@@ -1,0 +1,1170 @@
+==============================================================================
+RESULTS — YAGO3-10 — 2026-08-26T13:08:20
+==============================================================================
+
+## ENVIRONMENT
+git HEAD : 4a392bc semantic_types: register Hetionet as an exogenous type provider
+torch 2.10.0+cu128 · transformers 4.57.6 · peft 0.19.1
+gpu   Tesla T4 ×2
+
+## ADAPTERS
+         P0     P1     P4     P5     P6     P7
+A         ·      ·      ✓      ✓      ✓      ·
+B         ·      ·      ✓      ✓      ✓      ·
+C         ·      ·      ✓      ✓      ✓      ·
+D         ·      ·      ·      ·      ·      ·
+E         ·      ·      ·      ·      ·      ·
+G         ·      ·      ✓      ✓      ✓      ·
+S         ·      ·      ·      ·      ·      ·
+
+## FIT — from each run's learning curve
+cfg prompt  verdict                                          train    eval
+A   P4      ✅ GOOD FIT — eval_loss plateaued near its mi    0.0282 0.03696
+A   P5      ✅ GOOD FIT — eval_loss plateaued near its mi    0.0286 0.03737
+A   P6      ⚠️ UNDERFITTING — eval_loss was still fallin     0.018 0.02723
+B   P4      ✅ GOOD FIT — eval_loss plateaued near its mi    0.1043 0.10405
+B   P5      ✅ GOOD FIT — eval_loss plateaued near its mi    0.1071 0.10681
+B   P6      ✅ GOOD FIT — eval_loss plateaued near its mi    0.1023  0.0996
+C   P4      ✅ GOOD FIT — eval_loss plateaued near its mi      0.05 0.05039
+C   P5      ✅ GOOD FIT — eval_loss plateaued near its mi    0.0494 0.05091
+C   P6      ✅ GOOD FIT — eval_loss plateaued near its mi    0.0483 0.05111
+G   P4      ✅ GOOD FIT — eval_loss plateaued near its mi    0.0236 0.03469
+G   P5      ✅ GOOD FIT — eval_loss plateaued near its mi    0.0241 0.03447
+G   P6      ⚠️ UNDERFITTING — eval_loss was still fallin    0.0152 0.02554
+
+## CONTEXT LEAK CHECK — P6/P7 builds
+  rank-A-P6: [context] leak check: 0 leaks in 300 queries; guard removed the gold in 150/150 forced cases; 0 inverse relation pair(s) detected
+  rank-B-P6: [context] leak check: 0 leaks in 300 queries; guard removed the gold in 150/150 forced cases; 0 inverse relation pair(s) detected
+  rank-C-P4: [rank] typed prompt confirmed: Is this true: entity103884 [people] plays for entity0 [movie]?
+  rank-C-P5: [rank] typed prompt confirmed: Is this true: entity103884 [people] plays for entity0 [movie]?
+  rank-C-P6: [context] leak check: 0 leaks in 300 queries; guard removed the gold in 150/150 forced cases; 0 inverse relation pair(s) detected
+  rank-C-P6: [rank] typed prompt confirmed: Is this true: entity103884 [people] plays for entity0 [movie]?
+  rank-G-P4: [rank] typed prompt confirmed: Is this true: Stan Collymore [people] plays for Morges District [administrative_district]?
+  rank-G-P5: [rank] typed prompt confirmed: Is this true: Stan Collymore [people] plays for Morges District [administrative_district]?
+  rank-G-P6: [context] leak check: 0 leaks in 300 queries; guard removed the gold in 150/150 forced cases; 0 inverse relation pair(s) detected
+  rank-G-P6: [rank] typed prompt confirmed: Is this true: Stan Collymore [people] plays for Morges District [administrative_district]?
+
+## TRIPLE CLASSIFICATION — accuracy on the real-name test set
+           P0       P1       P4       P5       P6       P7
+A          --       --   0.7000   0.7360   0.8450       --
+B          --       --   0.6485   0.6470   0.6600       --
+C          --       --   0.6300   0.5850   0.6305       --
+D          --       --       --       --       --       --
+E          --       --       --       --       --       --
+G          --       --   0.6940   0.7100   0.8355       --
+S          --       --       --       --       --       --
+
+## TRIPLE CLASSIFICATION — full
+cfg prompt      real    anon      gap  chance
+A   P4        0.7000  0.5000  +0.2000   0.500
+A   P5        0.7360  0.4935  +0.2425   0.500
+A   P6        0.8450  0.4815  +0.3635   0.500
+B   P4        0.6485  0.5045  +0.1440   0.500
+B   P5        0.6470  0.5055  +0.1415   0.500
+B   P6        0.6600  0.5545  +0.1055   0.500
+C   P4        0.6300  0.5340  +0.0960   0.507
+C   P5        0.5850  0.5290  +0.0560   0.507
+C   P6        0.6305  0.5360  +0.0945   0.507
+G   P4        0.6940  0.4920  +0.2020   0.507
+G   P5        0.7100  0.5155  +0.1945   0.507
+G   P6        0.8355  0.5090  +0.3265   0.507
+
+## TAIL COMPLETION — MRR (50-way filtered, chance 0.0900)
+           P0       P1       P4       P5       P6       P7
+A          --       --   0.8164   0.8226   0.8901       --
+B          --       --   0.1705   0.1478   0.2585       --
+C          --       --   0.5735   0.5496   0.6228       --
+D          --       --       --       --       --       --
+E          --       --       --       --       --       --
+G          --       --   0.8463   0.8396   0.8924       --
+S          --       --       --       --       --       --
+
+## TAIL COMPLETION — gain over zero-shot (P0)
+           P1       P4       P5       P6       P7
+
+## TAIL COMPLETION — full
+cfg prompt       MRR    H@1    H@3   H@10     MR
+A   P4        0.8164  0.714  0.898  0.998   1.72
+A   P5        0.8226  0.724  0.900  0.996   1.70
+A   P6        0.8901  0.828  0.938  0.994   1.46
+B   P4        0.1705  0.090  0.148  0.334  20.45
+B   P5        0.1478  0.064  0.132  0.280  22.98
+B   P6        0.2585  0.168  0.268  0.394  18.40
+C   P4        0.5735  0.354  0.750  0.982   2.84
+C   P5        0.5496  0.330  0.720  0.980   2.94
+C   P6        0.6228  0.440  0.768  0.974   2.74
+G   P4        0.8463  0.748  0.934  1.000   1.49
+G   P5        0.8396  0.740  0.932  0.998   1.53
+G   P6        0.8924  0.822  0.952  0.998   1.36
+--  chance    0.0900  0.020  0.060  0.200  25.50
+
+
+==============================================================================
+APPENDIX — job logs
+==============================================================================
+
+─── eval-A-P4.log (4 lines) ───
+    [pair] real <- YAGO3-10-A-P4   anon <- YAGO3-10-B-P4   prompt P4
+    [real] acc 0.7000  (predicted Yes 74.9%)
+    [anon] acc 0.5000  (predicted Yes 97.5%)
+    real 0.7000 · anon 0.5000 · GAP +0.2000
+
+─── eval-A-P5.log (4 lines) ───
+    [pair] real <- YAGO3-10-A-P5   anon <- YAGO3-10-B-P5   prompt P5
+    [real] acc 0.7360  (predicted Yes 68.1%)
+    [anon] acc 0.4935  (predicted Yes 24.8%)
+    real 0.7360 · anon 0.4935 · GAP +0.2425
+
+─── eval-A-P6.log (4 lines) ───
+    [pair] real <- YAGO3-10-A-P6   anon <- YAGO3-10-B-P6   prompt P6
+    [real] acc 0.8450  (predicted Yes 56.2%)
+    [anon] acc 0.4815  (predicted Yes 38.6%)
+    real 0.8450 · anon 0.4815 · GAP +0.3635
+
+─── eval-B-P4.log (4 lines) ───
+    [pair] real <- YAGO3-10-A-P4   anon <- YAGO3-10-B-P4   prompt P4
+    [real] acc 0.6485  (predicted Yes 32.9%)
+    [anon] acc 0.5045  (predicted Yes 22.9%)
+    real 0.6485 · anon 0.5045 · GAP +0.1440
+
+─── eval-B-P5.log (4 lines) ───
+    [pair] real <- YAGO3-10-A-P5   anon <- YAGO3-10-B-P5   prompt P5
+    [real] acc 0.6470  (predicted Yes 25.0%)
+    [anon] acc 0.5055  (predicted Yes 17.0%)
+    real 0.6470 · anon 0.5055 · GAP +0.1415
+
+─── eval-B-P6.log (4 lines) ───
+    [pair] real <- YAGO3-10-A-P6   anon <- YAGO3-10-B-P6   prompt P6
+    [real] acc 0.6600  (predicted Yes 28.0%)
+    [anon] acc 0.5545  (predicted Yes 24.6%)
+    real 0.6600 · anon 0.5545 · GAP +0.1055
+
+─── eval-C-P4.log (4 lines) ───
+    [pair] real <- YAGO3-10-G-P4   anon <- YAGO3-10-C-P4   (typed pair)   prompt P4
+    [real] acc 0.6300  (predicted Yes 34.9%)
+    [anon] acc 0.5340  (predicted Yes 93.7%)
+    real 0.6300 · anon 0.5340 · GAP +0.0960
+
+─── eval-C-P5.log (4 lines) ───
+    [pair] real <- YAGO3-10-G-P5   anon <- YAGO3-10-C-P5   (typed pair)   prompt P5
+    [real] acc 0.5850  (predicted Yes 86.8%)
+    [anon] acc 0.5290  (predicted Yes 95.0%)
+    real 0.5850 · anon 0.5290 · GAP +0.0560
+
+─── eval-C-P6.log (4 lines) ───
+    [pair] real <- YAGO3-10-G-P6   anon <- YAGO3-10-C-P6   (typed pair)   prompt P6
+    [real] acc 0.6305  (predicted Yes 26.7%)
+    [anon] acc 0.5360  (predicted Yes 93.0%)
+    real 0.6305 · anon 0.5360 · GAP +0.0945
+
+─── eval-G-P4.log (4 lines) ───
+    [pair] real <- YAGO3-10-G-P4   anon <- YAGO3-10-C-P4   (typed pair)   prompt P4
+    [real] acc 0.6940  (predicted Yes 75.8%)
+    [anon] acc 0.4920  (predicted Yes 39.2%)
+    real 0.6940 · anon 0.4920 · GAP +0.2020
+
+─── eval-G-P5.log (4 lines) ───
+    [pair] real <- YAGO3-10-G-P5   anon <- YAGO3-10-C-P5   (typed pair)   prompt P5
+    [real] acc 0.7100  (predicted Yes 74.9%)
+    [anon] acc 0.5155  (predicted Yes 87.8%)
+    real 0.7100 · anon 0.5155 · GAP +0.1945
+
+─── eval-G-P6.log (4 lines) ───
+    [pair] real <- YAGO3-10-G-P6   anon <- YAGO3-10-C-P6   (typed pair)   prompt P6
+    [real] acc 0.8355  (predicted Yes 58.4%)
+    [anon] acc 0.5090  (predicted Yes 83.7%)
+    real 0.8355 · anon 0.5090 · GAP +0.3265
+
+─── rank-A-P4.log (13 lines) ───
+  [rank] 500 queries · 50-way · condition A · prompt P4 · surface form: real
+  [rank] example query head: id='Stan_Collymore' -> rendered as 'Stan Collymore'
+  [rank] test labels: ±1 present | 123,182 entities in the candidate pool
+    forward passes: 25,000 items × ~0.012s ≈ 5m00s
+  ============================================================
+  ch1rank-YAGO3-10-A-P4   (50-way, filtered)
+  ============================================================
+    hits@1     0.7140
+    hits@3     0.8980
+    hits@10    0.9980
+    MRR        0.8164
+    mean_rank  1.7160
+    ⚠️ N-way Hits@K is NOT comparable to full-ranking Hits@K (R12). State the protocol in every caption.
+
+─── rank-A-P5.log (14 lines) ───
+  [rank] 500 queries · 50-way · condition A · prompt P5 · surface form: real
+  [rank] example query head: id='Stan_Collymore' -> rendered as 'Stan Collymore'
+  [rank] test labels: ±1 present | 123,182 entities in the candidate pool
+    forward passes: 25,000 items × ~0.012s ≈ 5m00s
+  [context] P5: 500/500 queries got a non-empty block (100.0%)
+  ============================================================
+  ch1rank-YAGO3-10-A-P5   (50-way, filtered)
+  ============================================================
+    hits@1     0.7240
+    hits@3     0.9000
+    hits@10    0.9960
+    MRR        0.8226
+    mean_rank  1.6980
+    ⚠️ N-way Hits@K is NOT comparable to full-ranking Hits@K (R12). State the protocol in every caption.
+
+─── rank-A-P6.log (15 lines) ───
+  [rank] 500 queries · 50-way · condition A · prompt P6 · surface form: real
+  [rank] example query head: id='Stan_Collymore' -> rendered as 'Stan Collymore'
+  [rank] test labels: ±1 present | 123,182 entities in the candidate pool
+  [context] leak check: 0 leaks in 300 queries; guard removed the gold in 150/150 forced cases; 0 inverse relation pair(s) detected
+    forward passes: 25,000 items × ~0.012s ≈ 5m00s
+  [context] P6: 473/500 queries got a non-empty block (94.6%)
+  ============================================================
+  ch1rank-YAGO3-10-A-P6   (50-way, filtered)
+  ============================================================
+    hits@1     0.8280
+    hits@3     0.9380
+    hits@10    0.9940
+    MRR        0.8901
+    mean_rank  1.4560
+    ⚠️ N-way Hits@K is NOT comparable to full-ranking Hits@K (R12). State the protocol in every caption.
+
+─── rank-B-P4.log (13 lines) ───
+  [rank] 500 queries · 50-way · condition B · prompt P4 · surface form: anon
+  [rank] example query head: id='Stan_Collymore' -> rendered as 'entity103884'
+  [rank] test labels: ±1 present | 123,182 entities in the candidate pool
+    forward passes: 25,000 items × ~0.012s ≈ 5m00s
+  ============================================================
+  ch1rank-YAGO3-10-B-P4   (50-way, filtered)
+  ============================================================
+    hits@1     0.0900
+    hits@3     0.1480
+    hits@10    0.3340
+    MRR        0.1705
+    mean_rank  20.4480
+    ⚠️ N-way Hits@K is NOT comparable to full-ranking Hits@K (R12). State the protocol in every caption.
+
+─── rank-B-P5.log (14 lines) ───
+  [rank] 500 queries · 50-way · condition B · prompt P5 · surface form: anon
+  [rank] example query head: id='Stan_Collymore' -> rendered as 'entity103884'
+  [rank] test labels: ±1 present | 123,182 entities in the candidate pool
+    forward passes: 25,000 items × ~0.012s ≈ 5m00s
+  [context] P5: 500/500 queries got a non-empty block (100.0%)
+  ============================================================
+  ch1rank-YAGO3-10-B-P5   (50-way, filtered)
+  ============================================================
+    hits@1     0.0640
+    hits@3     0.1320
+    hits@10    0.2800
+    MRR        0.1478
+    mean_rank  22.9840
+    ⚠️ N-way Hits@K is NOT comparable to full-ranking Hits@K (R12). State the protocol in every caption.
+
+─── rank-B-P6.log (15 lines) ───
+  [rank] 500 queries · 50-way · condition B · prompt P6 · surface form: anon
+  [rank] example query head: id='Stan_Collymore' -> rendered as 'entity103884'
+  [rank] test labels: ±1 present | 123,182 entities in the candidate pool
+  [context] leak check: 0 leaks in 300 queries; guard removed the gold in 150/150 forced cases; 0 inverse relation pair(s) detected
+    forward passes: 25,000 items × ~0.012s ≈ 5m00s
+  [context] P6: 473/500 queries got a non-empty block (94.6%)
+  ============================================================
+  ch1rank-YAGO3-10-B-P6   (50-way, filtered)
+  ============================================================
+    hits@1     0.1680
+    hits@3     0.2680
+    hits@10    0.3940
+    MRR        0.2585
+    mean_rank  18.3960
+    ⚠️ N-way Hits@K is NOT comparable to full-ranking Hits@K (R12). State the protocol in every caption.
+
+─── rank-C-P4.log (15 lines) ───
+  [types] YAGO3-10 C: EXOGENOUS (semantic) -> 286 distinct, OTHER=0.1%, largest=37.9%
+  [rank] 500 queries · 50-way · condition C · prompt P4 · surface form: anon
+  [rank] example query head: id='Stan_Collymore' -> rendered as 'entity103884'
+  [rank] test labels: ±1 present | 123,182 entities in the candidate pool
+  [rank] typed prompt confirmed: Is this true: entity103884 [people] plays for entity0 [movie]?
+    forward passes: 25,000 items × ~0.012s ≈ 5m00s
+  ============================================================
+  ch1rank-YAGO3-10-C-P4   (50-way, filtered)
+  ============================================================
+    hits@1     0.3540
+    hits@3     0.7500
+    hits@10    0.9820
+    MRR        0.5735
+    mean_rank  2.8360
+    ⚠️ N-way Hits@K is NOT comparable to full-ranking Hits@K (R12). State the protocol in every caption.
+
+─── rank-C-P5.log (16 lines) ───
+  [types] YAGO3-10 C: EXOGENOUS (semantic) -> 286 distinct, OTHER=0.1%, largest=37.9%
+  [rank] 500 queries · 50-way · condition C · prompt P5 · surface form: anon
+  [rank] example query head: id='Stan_Collymore' -> rendered as 'entity103884'
+  [rank] test labels: ±1 present | 123,182 entities in the candidate pool
+  [rank] typed prompt confirmed: Is this true: entity103884 [people] plays for entity0 [movie]?
+    forward passes: 25,000 items × ~0.012s ≈ 5m00s
+  [context] P5: 500/500 queries got a non-empty block (100.0%)
+  ============================================================
+  ch1rank-YAGO3-10-C-P5   (50-way, filtered)
+  ============================================================
+    hits@1     0.3300
+    hits@3     0.7200
+    hits@10    0.9800
+    MRR        0.5496
+    mean_rank  2.9420
+    ⚠️ N-way Hits@K is NOT comparable to full-ranking Hits@K (R12). State the protocol in every caption.
+
+─── rank-C-P6.log (17 lines) ───
+  [types] YAGO3-10 C: EXOGENOUS (semantic) -> 286 distinct, OTHER=0.1%, largest=37.9%
+  [rank] 500 queries · 50-way · condition C · prompt P6 · surface form: anon
+  [rank] example query head: id='Stan_Collymore' -> rendered as 'entity103884'
+  [rank] test labels: ±1 present | 123,182 entities in the candidate pool
+  [context] leak check: 0 leaks in 300 queries; guard removed the gold in 150/150 forced cases; 0 inverse relation pair(s) detected
+  [rank] typed prompt confirmed: Is this true: entity103884 [people] plays for entity0 [movie]?
+    forward passes: 25,000 items × ~0.012s ≈ 5m00s
+  [context] P6: 473/500 queries got a non-empty block (94.6%)
+  ============================================================
+  ch1rank-YAGO3-10-C-P6   (50-way, filtered)
+  ============================================================
+    hits@1     0.4400
+    hits@3     0.7680
+    hits@10    0.9740
+    MRR        0.6228
+    mean_rank  2.7440
+    ⚠️ N-way Hits@K is NOT comparable to full-ranking Hits@K (R12). State the protocol in every caption.
+
+─── rank-G-P4.log (15 lines) ───
+  [types] YAGO3-10 G: EXOGENOUS (semantic) -> 286 distinct, OTHER=0.1%, largest=37.9%
+  [rank] 500 queries · 50-way · condition G · prompt P4 · surface form: real
+  [rank] example query head: id='Stan_Collymore' -> rendered as 'Stan Collymore'
+  [rank] test labels: ±1 present | 123,182 entities in the candidate pool
+  [rank] typed prompt confirmed: Is this true: Stan Collymore [people] plays for Morges District [administrative_district]?
+    forward passes: 25,000 items × ~0.012s ≈ 5m00s
+  ============================================================
+  ch1rank-YAGO3-10-G-P4   (50-way, filtered)
+  ============================================================
+    hits@1     0.7480
+    hits@3     0.9340
+    hits@10    1.0000
+    MRR        0.8463
+    mean_rank  1.4940
+    ⚠️ N-way Hits@K is NOT comparable to full-ranking Hits@K (R12). State the protocol in every caption.
+
+─── rank-G-P5.log (16 lines) ───
+  [types] YAGO3-10 G: EXOGENOUS (semantic) -> 286 distinct, OTHER=0.1%, largest=37.9%
+  [rank] 500 queries · 50-way · condition G · prompt P5 · surface form: real
+  [rank] example query head: id='Stan_Collymore' -> rendered as 'Stan Collymore'
+  [rank] test labels: ±1 present | 123,182 entities in the candidate pool
+  [rank] typed prompt confirmed: Is this true: Stan Collymore [people] plays for Morges District [administrative_district]?
+    forward passes: 25,000 items × ~0.012s ≈ 5m00s
+  [context] P5: 500/500 queries got a non-empty block (100.0%)
+  ============================================================
+  ch1rank-YAGO3-10-G-P5   (50-way, filtered)
+  ============================================================
+    hits@1     0.7400
+    hits@3     0.9320
+    hits@10    0.9980
+    MRR        0.8396
+    mean_rank  1.5320
+    ⚠️ N-way Hits@K is NOT comparable to full-ranking Hits@K (R12). State the protocol in every caption.
+
+─── rank-G-P6.log (17 lines) ───
+  [types] YAGO3-10 G: EXOGENOUS (semantic) -> 286 distinct, OTHER=0.1%, largest=37.9%
+  [rank] 500 queries · 50-way · condition G · prompt P6 · surface form: real
+  [rank] example query head: id='Stan_Collymore' -> rendered as 'Stan Collymore'
+  [rank] test labels: ±1 present | 123,182 entities in the candidate pool
+  [context] leak check: 0 leaks in 300 queries; guard removed the gold in 150/150 forced cases; 0 inverse relation pair(s) detected
+  [rank] typed prompt confirmed: Is this true: Stan Collymore [people] plays for Morges District [administrative_district]?
+    forward passes: 25,000 items × ~0.012s ≈ 5m00s
+  [context] P6: 473/500 queries got a non-empty block (94.6%)
+  ============================================================
+  ch1rank-YAGO3-10-G-P6   (50-way, filtered)
+  ============================================================
+    hits@1     0.8220
+    hits@3     0.9520
+    hits@10    0.9980
+    MRR        0.8924
+    mean_rank  1.3640
+    ⚠️ N-way Hits@K is NOT comparable to full-ranking Hits@K (R12). State the protocol in every caption.
+
+─── train-A-P4.log (350 lines) ───
+          1000,
+          0.0377
+        ],
+        [
+          1020,
+          0.0341
+        ],
+        [
+          1040,
+          0.0376
+        ],
+        [
+          1060,
+          0.0319
+        ],
+        [
+          1080,
+          0.0316
+        ],
+        [
+          1100,
+          0.0313
+        ],
+        [
+          1120,
+          0.0318
+        ],
+        [
+          1140,
+          0.0322
+        ],
+        [
+          1160,
+          0.0327
+        ],
+        [
+          1180,
+          0.0282
+        ]
+      ],
+      "eval_curve": [
+        [
+          250,
+          0.04444
+        ],
+        [
+          500,
+          0.03713
+        ],
+        [
+          750,
+          0.03696
+        ],
+        [
+          1000,
+          0.03743
+        ]
+      ]
+    }
+  }
+
+─── train-A-P5.log (350 lines) ───
+          1000,
+          0.0381
+        ],
+        [
+          1020,
+          0.0351
+        ],
+        [
+          1040,
+          0.0372
+        ],
+        [
+          1060,
+          0.0322
+        ],
+        [
+          1080,
+          0.0327
+        ],
+        [
+          1100,
+          0.0332
+        ],
+        [
+          1120,
+          0.0315
+        ],
+        [
+          1140,
+          0.0355
+        ],
+        [
+          1160,
+          0.0328
+        ],
+        [
+          1180,
+          0.0286
+        ]
+      ],
+      "eval_curve": [
+        [
+          250,
+          0.04421
+        ],
+        [
+          500,
+          0.03737
+        ],
+        [
+          750,
+          0.03776
+        ],
+        [
+          1000,
+          0.03922
+        ]
+      ]
+    }
+  }
+
+─── train-A-P6.log (350 lines) ───
+          1000,
+          0.0291
+        ],
+        [
+          1020,
+          0.0268
+        ],
+        [
+          1040,
+          0.0249
+        ],
+        [
+          1060,
+          0.0221
+        ],
+        [
+          1080,
+          0.0239
+        ],
+        [
+          1100,
+          0.0215
+        ],
+        [
+          1120,
+          0.0245
+        ],
+        [
+          1140,
+          0.026
+        ],
+        [
+          1160,
+          0.0223
+        ],
+        [
+          1180,
+          0.018
+        ]
+      ],
+      "eval_curve": [
+        [
+          250,
+          0.03291
+        ],
+        [
+          500,
+          0.02917
+        ],
+        [
+          750,
+          0.02859
+        ],
+        [
+          1000,
+          0.02723
+        ]
+      ]
+    }
+  }
+
+─── train-A-P7.log (9 lines) ───
+    building 10,000 positives × (1 + 1 negatives) = 20,000 instances
+  ✋ P7 produced a context block for only 7.7% of training triples.
+     Below half, this run is mostly IDENTICAL to P0 and would
+     report 'context does not help' when context was absent.
+     P7 in particular needs a 2-hop path to exist; on a sparse
+     graph it often does not.
+     Either use P5/P6, or lower the bar DELIBERATELY and report
+     the coverage beside the metric:
+       python -m chapter1.data --prompt P7 --min-context 0.05
+
+─── train-B-P4.log (350 lines) ───
+          1000,
+          0.1042
+        ],
+        [
+          1020,
+          0.1031
+        ],
+        [
+          1040,
+          0.1044
+        ],
+        [
+          1060,
+          0.1035
+        ],
+        [
+          1080,
+          0.1044
+        ],
+        [
+          1100,
+          0.1029
+        ],
+        [
+          1120,
+          0.1037
+        ],
+        [
+          1140,
+          0.1043
+        ],
+        [
+          1160,
+          0.1038
+        ],
+        [
+          1180,
+          0.1043
+        ]
+      ],
+      "eval_curve": [
+        [
+          250,
+          0.10638
+        ],
+        [
+          500,
+          0.10558
+        ],
+        [
+          750,
+          0.10444
+        ],
+        [
+          1000,
+          0.10405
+        ]
+      ]
+    }
+  }
+
+─── train-B-P5.log (350 lines) ───
+          1000,
+          0.1065
+        ],
+        [
+          1020,
+          0.1063
+        ],
+        [
+          1040,
+          0.1065
+        ],
+        [
+          1060,
+          0.1068
+        ],
+        [
+          1080,
+          0.1072
+        ],
+        [
+          1100,
+          0.1065
+        ],
+        [
+          1120,
+          0.1068
+        ],
+        [
+          1140,
+          0.1066
+        ],
+        [
+          1160,
+          0.1066
+        ],
+        [
+          1180,
+          0.1071
+        ]
+      ],
+      "eval_curve": [
+        [
+          250,
+          0.10754
+        ],
+        [
+          500,
+          0.10691
+        ],
+        [
+          750,
+          0.10684
+        ],
+        [
+          1000,
+          0.10681
+        ]
+      ]
+    }
+  }
+
+─── train-B-P6.log (350 lines) ───
+          1000,
+          0.0962
+        ],
+        [
+          1020,
+          0.0977
+        ],
+        [
+          1040,
+          0.1016
+        ],
+        [
+          1060,
+          0.0969
+        ],
+        [
+          1080,
+          0.0994
+        ],
+        [
+          1100,
+          0.0969
+        ],
+        [
+          1120,
+          0.1022
+        ],
+        [
+          1140,
+          0.0978
+        ],
+        [
+          1160,
+          0.1008
+        ],
+        [
+          1180,
+          0.1023
+        ]
+      ],
+      "eval_curve": [
+        [
+          250,
+          0.10549
+        ],
+        [
+          500,
+          0.1016
+        ],
+        [
+          750,
+          0.0997
+        ],
+        [
+          1000,
+          0.0996
+        ]
+      ]
+    }
+  }
+
+─── train-B-P7.log (9 lines) ───
+    building 10,000 positives × (1 + 1 negatives) = 20,000 instances
+  ✋ P7 produced a context block for only 7.7% of training triples.
+     Below half, this run is mostly IDENTICAL to P0 and would
+     report 'context does not help' when context was absent.
+     P7 in particular needs a 2-hop path to exist; on a sparse
+     graph it often does not.
+     Either use P5/P6, or lower the bar DELIBERATELY and report
+     the coverage beside the metric:
+       python -m chapter1.data --prompt P7 --min-context 0.05
+
+─── train-C-P4.log (350 lines) ───
+          1000,
+          0.0519
+        ],
+        [
+          1020,
+          0.052
+        ],
+        [
+          1040,
+          0.05
+        ],
+        [
+          1060,
+          0.0502
+        ],
+        [
+          1080,
+          0.0474
+        ],
+        [
+          1100,
+          0.0458
+        ],
+        [
+          1120,
+          0.0491
+        ],
+        [
+          1140,
+          0.0471
+        ],
+        [
+          1160,
+          0.0493
+        ],
+        [
+          1180,
+          0.05
+        ]
+      ],
+      "eval_curve": [
+        [
+          250,
+          0.05529
+        ],
+        [
+          500,
+          0.05183
+        ],
+        [
+          750,
+          0.05117
+        ],
+        [
+          1000,
+          0.05039
+        ]
+      ]
+    }
+  }
+
+─── train-C-P5.log (350 lines) ───
+          1000,
+          0.0503
+        ],
+        [
+          1020,
+          0.0514
+        ],
+        [
+          1040,
+          0.0498
+        ],
+        [
+          1060,
+          0.0524
+        ],
+        [
+          1080,
+          0.0473
+        ],
+        [
+          1100,
+          0.047
+        ],
+        [
+          1120,
+          0.049
+        ],
+        [
+          1140,
+          0.0471
+        ],
+        [
+          1160,
+          0.05
+        ],
+        [
+          1180,
+          0.0494
+        ]
+      ],
+      "eval_curve": [
+        [
+          250,
+          0.05867
+        ],
+        [
+          500,
+          0.05285
+        ],
+        [
+          750,
+          0.05091
+        ],
+        [
+          1000,
+          0.05215
+        ]
+      ]
+    }
+  }
+
+─── train-C-P6.log (350 lines) ───
+          1000,
+          0.0492
+        ],
+        [
+          1020,
+          0.0507
+        ],
+        [
+          1040,
+          0.0493
+        ],
+        [
+          1060,
+          0.0484
+        ],
+        [
+          1080,
+          0.0464
+        ],
+        [
+          1100,
+          0.0447
+        ],
+        [
+          1120,
+          0.0487
+        ],
+        [
+          1140,
+          0.0465
+        ],
+        [
+          1160,
+          0.0482
+        ],
+        [
+          1180,
+          0.0483
+        ]
+      ],
+      "eval_curve": [
+        [
+          250,
+          0.05772
+        ],
+        [
+          500,
+          0.05384
+        ],
+        [
+          750,
+          0.05148
+        ],
+        [
+          1000,
+          0.05111
+        ]
+      ]
+    }
+  }
+
+─── train-C-P7.log (10 lines) ───
+  [types] YAGO3-10 C: EXOGENOUS (semantic) -> 286 distinct, OTHER=0.1%, largest=37.9%
+    building 10,000 positives × (1 + 1 negatives) = 20,000 instances
+  ✋ P7 produced a context block for only 7.7% of training triples.
+     Below half, this run is mostly IDENTICAL to P0 and would
+     report 'context does not help' when context was absent.
+     P7 in particular needs a 2-hop path to exist; on a sparse
+     graph it often does not.
+     Either use P5/P6, or lower the bar DELIBERATELY and report
+     the coverage beside the metric:
+       python -m chapter1.data --prompt P7 --min-context 0.05
+
+─── train-G-P4.log (350 lines) ───
+          1000,
+          0.0338
+        ],
+        [
+          1020,
+          0.0292
+        ],
+        [
+          1040,
+          0.0334
+        ],
+        [
+          1060,
+          0.0294
+        ],
+        [
+          1080,
+          0.0278
+        ],
+        [
+          1100,
+          0.0266
+        ],
+        [
+          1120,
+          0.0298
+        ],
+        [
+          1140,
+          0.0284
+        ],
+        [
+          1160,
+          0.0293
+        ],
+        [
+          1180,
+          0.0236
+        ]
+      ],
+      "eval_curve": [
+        [
+          250,
+          0.04368
+        ],
+        [
+          500,
+          0.03529
+        ],
+        [
+          750,
+          0.03469
+        ],
+        [
+          1000,
+          0.03498
+        ]
+      ]
+    }
+  }
+
+─── train-G-P5.log (350 lines) ───
+          1000,
+          0.0334
+        ],
+        [
+          1020,
+          0.0296
+        ],
+        [
+          1040,
+          0.0339
+        ],
+        [
+          1060,
+          0.0293
+        ],
+        [
+          1080,
+          0.0283
+        ],
+        [
+          1100,
+          0.0274
+        ],
+        [
+          1120,
+          0.0286
+        ],
+        [
+          1140,
+          0.0298
+        ],
+        [
+          1160,
+          0.0299
+        ],
+        [
+          1180,
+          0.0241
+        ]
+      ],
+      "eval_curve": [
+        [
+          250,
+          0.04413
+        ],
+        [
+          500,
+          0.03616
+        ],
+        [
+          750,
+          0.03447
+        ],
+        [
+          1000,
+          0.03524
+        ]
+      ]
+    }
+  }
+
+─── train-G-P6.log (350 lines) ───
+          1000,
+          0.0265
+        ],
+        [
+          1020,
+          0.0209
+        ],
+        [
+          1040,
+          0.0229
+        ],
+        [
+          1060,
+          0.0209
+        ],
+        [
+          1080,
+          0.0225
+        ],
+        [
+          1100,
+          0.0204
+        ],
+        [
+          1120,
+          0.0201
+        ],
+        [
+          1140,
+          0.0245
+        ],
+        [
+          1160,
+          0.0209
+        ],
+        [
+          1180,
+          0.0152
+        ]
+      ],
+      "eval_curve": [
+        [
+          250,
+          0.0325
+        ],
+        [
+          500,
+          0.02893
+        ],
+        [
+          750,
+          0.02746
+        ],
+        [
+          1000,
+          0.02554
+        ]
+      ]
+    }
+  }
+
+─── train-G-P7.log (10 lines) ───
+  [types] YAGO3-10 G: EXOGENOUS (semantic) -> 286 distinct, OTHER=0.1%, largest=37.9%
+    building 10,000 positives × (1 + 1 negatives) = 20,000 instances
+  ✋ P7 produced a context block for only 7.7% of training triples.
+     Below half, this run is mostly IDENTICAL to P0 and would
+     report 'context does not help' when context was absent.
+     P7 in particular needs a 2-hop path to exist; on a sparse
+     graph it often does not.
+     Either use P5/P6, or lower the bar DELIBERATELY and report
+     the coverage beside the metric:
+       python -m chapter1.data --prompt P7 --min-context 0.05

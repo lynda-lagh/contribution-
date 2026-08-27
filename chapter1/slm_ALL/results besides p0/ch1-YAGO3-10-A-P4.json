@@ -1,0 +1,375 @@
+{
+  "config": {
+    "seed": 42,
+    "model": {
+      "name": "Qwen/Qwen2.5-1.5B-Instruct",
+      "dtype": "fp16",
+      "trust_remote_code": false,
+      "pad_token": "eos",
+      "attn_implementation": "sdpa"
+    },
+    "data": {
+      "root": "data",
+      "train_triples": 10000,
+      "sampling": "stratified_by_relation",
+      "min_per_relation": 10,
+      "val_size": 1000,
+      "test_subset": 2000,
+      "negatives": "random"
+    },
+    "tokenizer": {
+      "cutoff_len": 512,
+      "padding": "dynamic",
+      "add_eos_token": true
+    },
+    "prompt": {
+      "template": "alpaca",
+      "include_entity_description": true,
+      "regenerate_entity_description": false,
+      "include_relation_description": false,
+      "include_exclusion_list": false,
+      "include_type_tag": false,
+      "include_neighbours": false
+    },
+    "peft": {
+      "method": "lora",
+      "r": 8,
+      "alpha": 16,
+      "dropout": 0.05,
+      "target_modules": [
+        "q_proj",
+        "v_proj"
+      ],
+      "bias": "none",
+      "task_type": "CAUSAL_LM",
+      "boft_block_size": 4,
+      "boft_n_butterfly_factor": 2
+    },
+    "train": {
+      "epochs": 2,
+      "learning_rate": 0.0003,
+      "micro_batch_size": 4,
+      "grad_accum_steps": 8,
+      "warmup_steps": 100,
+      "optim": "adamw_torch",
+      "gradient_checkpointing": true,
+      "torch_compile": false,
+      "fp16": true,
+      "logging_steps": 20,
+      "eval_steps": 250,
+      "save_steps": 250,
+      "save_total_limit": 2,
+      "adapter_only_checkpoint": true,
+      "report_to": "wandb"
+    },
+    "infer": {
+      "greedy": {
+        "do_sample": false,
+        "max_new_tokens": 16
+      },
+      "sampling": {
+        "do_sample": true,
+        "top_p": 0.95,
+        "top_k": 20,
+        "num_return_sequences": 10
+      }
+    },
+    "output": {
+      "results_dir": "results",
+      "adapter_dir": "checkpoints"
+    }
+  },
+  "env": {
+    "torch": "2.10.0+cu128",
+    "cuda": "12.8",
+    "n_gpu": 1,
+    "gpus": [
+      "Tesla T4"
+    ],
+    "bf16_supported": true,
+    "transformers": "4.57.6",
+    "peft": "0.19.1",
+    "trl": "1.10.0",
+    "datasets": "5.0.0",
+    "peft_env": "official",
+    "has_mora": false,
+    "has_boft": true
+  },
+  "run_name": "ch1-YAGO3-10-A-P4",
+  "peft_method": "lora",
+  "model": "Qwen/Qwen2.5-1.5B-Instruct",
+  "n_instances": 20000,
+  "train_runtime_s": 3368.6592,
+  "train_loss": 0.051592007655688006,
+  "steps": 0.353,
+  "peak_vram_gb": 4.767194624,
+  "output_dir": "checkpoints/ch1-YAGO3-10-A-P4",
+  "curve": {
+    "verdict": "\u2705 GOOD FIT \u2014 eval_loss plateaued near its minimum",
+    "final_train_loss": 0.0282,
+    "best_eval_loss": 0.03696,
+    "last_eval_loss": 0.03743,
+    "best_step": 750,
+    "total_steps": 1000,
+    "relative_rise_after_best": 0.01257,
+    "train_curve": [
+      [
+        20,
+        0.5622
+      ],
+      [
+        40,
+        0.1569
+      ],
+      [
+        60,
+        0.0637
+      ],
+      [
+        80,
+        0.057
+      ],
+      [
+        100,
+        0.0683
+      ],
+      [
+        120,
+        0.0552
+      ],
+      [
+        140,
+        0.0502
+      ],
+      [
+        160,
+        0.0541
+      ],
+      [
+        180,
+        0.0531
+      ],
+      [
+        200,
+        0.0496
+      ],
+      [
+        220,
+        0.0475
+      ],
+      [
+        240,
+        0.0422
+      ],
+      [
+        260,
+        0.0468
+      ],
+      [
+        280,
+        0.045
+      ],
+      [
+        300,
+        0.0536
+      ],
+      [
+        320,
+        0.0447
+      ],
+      [
+        340,
+        0.0393
+      ],
+      [
+        360,
+        0.048
+      ],
+      [
+        380,
+        0.0415
+      ],
+      [
+        400,
+        0.0448
+      ],
+      [
+        420,
+        0.0486
+      ],
+      [
+        440,
+        0.0392
+      ],
+      [
+        460,
+        0.0372
+      ],
+      [
+        480,
+        0.0412
+      ],
+      [
+        500,
+        0.0428
+      ],
+      [
+        520,
+        0.0407
+      ],
+      [
+        540,
+        0.0386
+      ],
+      [
+        560,
+        0.0424
+      ],
+      [
+        580,
+        0.0385
+      ],
+      [
+        600,
+        0.0424
+      ],
+      [
+        620,
+        0.0353
+      ],
+      [
+        640,
+        0.0394
+      ],
+      [
+        660,
+        0.0386
+      ],
+      [
+        680,
+        0.0349
+      ],
+      [
+        700,
+        0.0381
+      ],
+      [
+        720,
+        0.0391
+      ],
+      [
+        740,
+        0.0417
+      ],
+      [
+        760,
+        0.0386
+      ],
+      [
+        780,
+        0.034
+      ],
+      [
+        800,
+        0.0386
+      ],
+      [
+        820,
+        0.0322
+      ],
+      [
+        840,
+        0.0317
+      ],
+      [
+        860,
+        0.0331
+      ],
+      [
+        880,
+        0.036
+      ],
+      [
+        900,
+        0.0325
+      ],
+      [
+        920,
+        0.0337
+      ],
+      [
+        940,
+        0.032
+      ],
+      [
+        960,
+        0.0382
+      ],
+      [
+        980,
+        0.0359
+      ],
+      [
+        1000,
+        0.0377
+      ],
+      [
+        1020,
+        0.0341
+      ],
+      [
+        1040,
+        0.0376
+      ],
+      [
+        1060,
+        0.0319
+      ],
+      [
+        1080,
+        0.0316
+      ],
+      [
+        1100,
+        0.0313
+      ],
+      [
+        1120,
+        0.0318
+      ],
+      [
+        1140,
+        0.0322
+      ],
+      [
+        1160,
+        0.0327
+      ],
+      [
+        1180,
+        0.0282
+      ]
+    ],
+    "eval_curve": [
+      [
+        250,
+        0.04444
+      ],
+      [
+        500,
+        0.03713
+      ],
+      [
+        750,
+        0.03696
+      ],
+      [
+        1000,
+        0.03743
+      ]
+    ]
+  },
+  "condition": "A",
+  "isolates": "baseline \u2014 KG-LLM's exact recipe",
+  "reference": "KG-LLM (ICASSP 2025): random.choice(ent_list), 1 negative per positive"
+}

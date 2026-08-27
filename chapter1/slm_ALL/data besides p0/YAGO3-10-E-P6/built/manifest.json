@@ -1,0 +1,39 @@
+{
+  "condition": "E",
+  "prompt": "P6",
+  "dataset": "YAGO3-10",
+  "seed": 42,
+  "anonymised": true,
+  "types": true,
+  "require_semantic": true,
+  "negatives": "type_consistent",
+  "n_negatives": 6,
+  "n_triples_sampled": 10000,
+  "n_train_instances": 70000,
+  "n_test_instances": 10000,
+  "test_positive_rate": 0.5,
+  "context_coverage": 0.9433333333333334,
+  "n_entities_seen_in_training": 14319,
+  "n_entities_total": 123182,
+  "seen_coverage": 0.11624263285220243,
+  "test_seen_both_rate": 0.0825,
+  "isolates": "negative COUNT (hardness held constant)",
+  "reference": "RealKGC: exactly 6 negatives (3 head-corrupted + 3 tail-corrupted)",
+  "example_positive": {
+    "instruction": "Giving the neighbors of entity48634: entity4853|entity21538|entity22036|entity21476|entity110612. Is this true: entity48634 [people] is affiliated to entity21777 [university]?",
+    "input": "",
+    "output": "No, this is not true."
+  },
+  "example_test": {
+    "instruction": "Giving the neighbors of entity103884: entity82309|entity92274|entity14565|entity23235|entity122002. Is this true: entity103884 [people] plays for entity32138 [football_team]?",
+    "input": "",
+    "output": "Yes, this is true.",
+    "label": 1,
+    "head": "Stan_Collymore",
+    "relation": "playsFor",
+    "tail": "England_national_football_team",
+    "seen_head": true,
+    "seen_tail": true,
+    "seen_both": true
+  }
+}
